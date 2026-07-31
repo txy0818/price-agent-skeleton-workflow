@@ -14,7 +14,7 @@ description: 为 PriceStudio 新建、修改、保存或发布同款判定提示
   包含 `operator` 入参，必须原样传入当前业务上下文的 `operator`；不得省略、猜测、
   改写或使用默认操作人。重试和只读核实调用仍使用同一个 `operator`。
 - 文档中的 MCP 调用统一写成
-  `ToolName(field=value, ..., operator=当前业务上下文.operator)`；列出流程依赖的业务
+  `tool_name(field=value, ..., operator=当前业务上下文.operator)`；列出流程依赖的业务
   入参，不用“传某字段”等自然语言代替调用参数。
 - 只读 MCP 遇到超时、限流或临时网络错误时重试一次；仍失败则说明失败工具和 `resp_desc`，然后停止。
 - 参数缺失、权限不足、数据不存在、归属冲突或关键数据为空属于业务错误，不重试；明确说明需要用户补充或修正的内容。
@@ -37,5 +37,8 @@ description: 为 PriceStudio 新建、修改、保存或发布同款判定提示
 - 发布提示词：[references/publish-workflow.md](references/publish-workflow.md)
 
 单一目标只读取对应的一个文件；用户明确提出多个目标时，读取对应的多个文件并按依赖顺序执行，不得加载无关 workflow。单条与整次 Badcase 同时分析时复用任务查询结果，并按 case ID 去重。用户同时要求分析、修改和发布时，依次完成“分析 → 新提示词草稿 → 验证 → 发布确认”，不得跳步。
+
+当前 workflow 需要比价规则或映射表时，同时读取
+[references/rule-loading-policy.md](references/rule-loading-policy.md)，按三个 Hash 分别判断复用或刷新。
 
 生成或重组完整提示词时，按当前 workflow 的指引读取格式与转换指南。`full-skeleton-example.md` 是补充参考，不代表当前业务事实，默认不加载；仅在用户明确要求查看完整示例时读取。

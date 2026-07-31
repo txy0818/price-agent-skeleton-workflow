@@ -10,13 +10,11 @@
    ID 和名称同时提供时，必须精确查询并确认指向同一版本；不一致时提示用户修正。
 2. 从本轮输入提取左右商品标题、属性、主图、人工标签、模型结论和模型理由；不得把缺失信息补写成事实。
 3. 调用
-   `ToolQueryPromptSkeleton(rule_group_id=当前业务上下文.ruleGroupId, prompt_version_id=<本轮提示词ID；未提供则0>, version_name=<本轮提示词名称；未提供则空>, operator=当前业务上下文.operator)`。
+   `tool_query_prompt_skeleton(rule_group_id=当前业务上下文.ruleGroupId, prompt_version_id=<本轮提示词ID；未提供则0>, version_name=<本轮提示词名称；未提供则空>, operator=当前业务上下文.operator)`。
    仅当 `base_resp.resp_code=1` 时读取 `prompt_version`。
-4. 调用
-   `ToolQueryPriceRule(rule_group_id=<规则组ID>, include_special_rule=1, operator=当前业务上下文.operator)`，
-   只取 `data.price_rule_json` 和 `data.special_rule_json`；调用
-   `ToolQueryRuleDataTable(rule_group_id=<规则组ID>, operator=当前业务上下文.operator)`，
-   只取 `data.data_table_json`。
+4. 按 [rule-loading-policy.md](rule-loading-policy.md) 加载当前查询作用域下有效的
+   `price_rule_json`、`special_rule_json` 和 `data_table_json`。必须先进行 Hash
+   校验；命中且历史完整 JSON 仍可见时复用，否则按策略取得完整 JSON。
 5. 判断证据是否足以复核争议比价项：涉及外观必须有左右主图；涉及标题、属性或映射必须有对应原始信息；必须知道人工标签与模型结论。信息不足时列出缺失项并停止，不生成 Diff、完整提示词或草稿。
 6. 信息充分时结合规则、映射和基础提示词复核。Badcase 可能是提示词缺陷、模型未遵循规则、疑似人工标签错误、映射或数据问题、证据不足，不得默认归因于提示词。
 
@@ -55,5 +53,5 @@
 ## 确认后
 
 只有证据充分、确认属于提示词缺陷且用户明确确认，才调用一次
-`ToolEditPromptSkeleton(rule_group_id=<规则组ID>, prompt_version_id=<基础提示词ID>, prompt_content=<已确认的完整内容>, change_reason=<Badcase修复原因>, diff_content=<已展示Diff>, source_type=2, operator=当前业务上下文.operator)`。
+`tool_edit_prompt_skeleton(rule_group_id=<规则组ID>, prompt_version_id=<基础提示词ID>, prompt_content=<已确认的完整内容>, change_reason=<Badcase修复原因>, diff_content=<已展示Diff>, source_type=2, operator=当前业务上下文.operator)`。
 仅当返回成功、新 ID/版本号大于 0、名称非空且新 ID 不同于基础 ID 时说明新提示词草稿创建成功；不自动运行验证或发布。

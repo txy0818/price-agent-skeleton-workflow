@@ -6,9 +6,9 @@
 
 只使用以下业务内容：
 
-- `ToolQueryPriceRule.data.price_rule_json`：比价项、信息来源、匹配逻辑及适用范围。
-- `ToolQueryPriceRule.data.special_rule_json`：特殊条件、例外和覆盖规则。
-- `ToolQueryRuleDataTable.data.data_table_json`：母子品牌、材质分组等映射。
+- `tool_query_price_rule.data.price_rule_json`：比价项、信息来源、匹配逻辑及适用范围。
+- `tool_query_price_rule.data.special_rule_json`：特殊条件、例外和覆盖规则。
+- `tool_query_rule_data_table.data.data_table_json`：母子品牌、材质分组等映射。
 
 JSON 缺失、为空或无法解析时停止，不使用参考示例补齐。
 
