@@ -23,6 +23,11 @@ description: 为 PriceStudio 新建、修改、保存或发布同款判定提示
 - 草稿、线上和归档提示词均可作为修改的基础版本；修改只能派生新的提示词草稿，不得覆盖
   任一基础版本。归档状态只限制直接发布，不限制作为派生基础。
 - 用户确认修改提示词后，必须创建新的草稿版本，不得覆盖基础版本；保存草稿和发布线上是两个独立动作，分别取得用户确认。
+- 任意流程调用 `tool_edit_prompt_skeleton` 后，仅当返回成功、
+  `new_prompt_version_id>0`、`version_no>0`、`new_prompt_name` 非空，且基于已有版本修改时
+  新 ID 不同于基础 ID，才能说明创建成功。成功回答必须明确版本关系：
+  - 基于已有版本：`基于提示词 <base_prompt_name>（ID：<base_prompt_version_id>），新建提示词草稿 <new_prompt_name>（ID：<new_prompt_version_id>）。`
+  - 从零新建：`从零新建提示词草稿 <new_prompt_name>（ID：<new_prompt_version_id>）。`
 
 ## 路由
 

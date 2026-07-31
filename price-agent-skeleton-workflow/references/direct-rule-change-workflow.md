@@ -47,4 +47,4 @@
 
 调用一次
 `tool_edit_prompt_skeleton(rule_group_id=<规则组ID>, prompt_version_id=<基础提示词ID>, prompt_content=<已确认的完整内容>, change_reason=<规则修改原因>, diff_content=<已展示Diff>, source_type=2, operator=当前业务上下文.operator)`。
-仅当返回成功、新 ID/版本号大于 0、名称非空且新 ID 不同于基础 ID 时说明新提示词草稿创建成功。写出新提示词名称、ID、版本号及与基础版本的关系；后续修改、验证和发布使用新 ID，不自动运行验证或发布。
+仅按 `SKILL.md` 的新草稿成功规则校验并返回名称和 ID；同时写出与基础版本的关系。后续修改、验证和发布使用新 ID，不自动运行验证或发布。

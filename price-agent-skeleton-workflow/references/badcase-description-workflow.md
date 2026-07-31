@@ -22,7 +22,6 @@
 
 ````markdown
 ## Badcase 初步分析
-- Agent：`<名称；查不到时写ID>`
 - 基础提示词：`<名称>`（ID：`<ID>`）
 - 分析范围：用户直接描述，未关联真实验证任务
 ### 样本与证据
@@ -54,4 +53,4 @@
 
 只有证据充分、确认属于提示词缺陷且用户明确确认，才调用一次
 `tool_edit_prompt_skeleton(rule_group_id=<规则组ID>, prompt_version_id=<基础提示词ID>, prompt_content=<已确认的完整内容>, change_reason=<Badcase修复原因>, diff_content=<已展示Diff>, source_type=2, operator=当前业务上下文.operator)`。
-仅当返回成功、新 ID/版本号大于 0、名称非空且新 ID 不同于基础 ID 时说明新提示词草稿创建成功；不自动运行验证或发布。
+仅按 `SKILL.md` 的新草稿成功规则校验并返回名称和 ID；不自动运行验证或发布。

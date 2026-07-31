@@ -43,6 +43,6 @@
 
 调用一次
 `tool_edit_prompt_skeleton(rule_group_id=<规则组ID>, prompt_version_id=<基础提示词ID>, prompt_content=<已确认的完整内容>, change_reason=<修改原因>, diff_content=<已展示Diff>, source_type=2, operator=当前业务上下文.operator)`。
-仅当 `resp_code=1`、新 ID/版本号大于 0、名称非空且新 ID 不同于基础 ID 时说明成功。写出新提示词名称、ID、版本号及版本关系；本次变更的后续修改、验证和发布使用新 ID，不自动验证或发布。调用超时或返回不完整时，先调用
+仅按 `SKILL.md` 的新草稿成功规则校验并返回名称和 ID；同时写出版本关系。本次变更的后续修改、验证和发布使用新 ID，不自动验证或发布。调用超时或返回不完整时，先调用
 `query_agent_detail(agent_id=当前业务上下文.agentId, operator=当前业务上下文.operator)`
 取得 `data.latest_draft_prompt_version_id`，再按该 ID 精确查询并比对基础版本、完整内容和创建信息；不能唯一确认就报告结果未知，不再次编辑。

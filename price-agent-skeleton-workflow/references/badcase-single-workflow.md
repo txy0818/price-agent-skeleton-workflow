@@ -55,4 +55,6 @@
 
 只有提示词缺陷且用户明确确认，才调用一次
 `tool_edit_prompt_skeleton(rule_group_id=<规则组ID>, prompt_version_id=<PromptVersionBaseInfo.prompt_version_id>, prompt_content=<完整新提示词>, change_reason=<Badcase修复原因>, diff_content=<已展示Diff>, source_type=2, operator=当前业务上下文.operator)`。
-仅当返回成功、新 ID/版本号大于 0、名称非空且新 ID 不同于基础 ID 时说明成功；在 CDN 前写出新版本关系，不自动发布。写入结果不明确时先只读核实，无法唯一确认则报告结果未知且不重试写入。
+调用成功后按 `SKILL.md` 的格式返回基础提示词与新草稿的名称和 ID；本轮不再输出 CDN，
+也不自动运行验证或发布。写入结果不明确时先只读核实，无法唯一确认则报告结果未知且
+不重试写入。
