@@ -8,13 +8,15 @@
 2. 必须取得验证任务 ID：用户本轮明确提供时优先，否则使用上下文 `validationTaskId`；
    两者都没有时要求补充。CDN 不能代替任务 ID。
 3. 调用
-   `tool_query_validation_result(validation_task_id=<任务ID>, label_filter=3, page_size=20, operator=当前业务上下文.operator)`。
+   `tool_query_validation_result(validation_task_id=<任务ID>, label_filter=3, page_size=10, operator=当前业务上下文.operator)`。
    从返回的 `PromptVersionBaseInfo` 取得任务实际使用的 `prompt_version_id`、
    `version_name`、`version_status` 和完整 `prompt_content`，同时取得验证集、商品快照、
    标签和原因；校验 Agent。该提示词即本次基础版本，不再查询其他提示词；修改只能派生
    新草稿，不得覆盖它。
-   一次最多分析 20 条；还有更多时报告剩余数。用户要求继续时查询下一页；必须保持同一
-   任务 ID 和 `PromptVersionBaseInfo.prompt_version_id`，并按 `validation_case_id` 去重。
+   一次最多分析 10 条，不得自行调大 `page_size`：单批 20 条会带回 20 组商品快照，挤占
+   上下文并导致前批阶段结论被压缩丢失。还有更多时报告剩余数。用户要求继续时查询下一页；
+   必须保持同一任务 ID 和 `PromptVersionBaseInfo.prompt_version_id`，并按
+   `validation_case_id` 去重。
 4. 执行 `[S2]` 加载规则与映射，**按需取**：逐条先按 `human_label` 与 `model_label` 判定错误
    方向，再解析本批 `ToolValidationCaseResult.raw_llm_response`（为空时退回
    `analysis_process`）中的 `extracted`，按
@@ -68,7 +70,7 @@
 - 候选建议：<待最终整合的规则修改；无缺陷写“本批无提示词修改建议”>
 - 不写入提示词：<标签、数据、映射或执行问题>
 - 与前批关系：<新增/重复/补充/冲突；首批写“首批”>
-<超过20：本次已分析20条，剩余 <remaining> 条；可回复“继续分析”。>
+<超过10：本次已分析10条，剩余 <remaining> 条；可回复“继续分析”。>
 <需要整合时：可回复“整合修改建议给我一个草稿”。>
 验证集报告：[查看 CDN 报告](<真实链接>)
 ````
