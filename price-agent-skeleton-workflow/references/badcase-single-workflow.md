@@ -12,7 +12,7 @@
    从返回的 `PromptVersionBaseInfo` 取得任务实际使用的 `prompt_version_id`、
    `version_name`、`version_status` 和完整 `prompt_content`，同时取得验证集、商品快照、
    人工/模型标签和原因；校验 Agent 及页面非零 `datasetId`。该提示词即本次基础版本，
-   不再查询其他提示词；修改只能派生新草稿，不得覆盖它。
+   不再查询其他提示词。
 4. 执行 `[S2]` 加载规则与映射，**按需取**：先按 `human_label` 与 `model_label` 判定错误方向，
    再解析本条 `ToolValidationCaseResult.raw_llm_response`（为空时退回 `analysis_process`）中的
    `extracted`，按 [rule-loading-policy.md](rule-loading-policy.md) 的「提取嫌疑比价项」

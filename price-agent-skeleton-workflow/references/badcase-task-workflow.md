@@ -11,8 +11,7 @@
    `tool_query_validation_result(validation_task_id=<任务ID>, label_filter=3, page_size=10, operator=当前业务上下文.operator)`。
    从返回的 `PromptVersionBaseInfo` 取得任务实际使用的 `prompt_version_id`、
    `version_name`、`version_status` 和完整 `prompt_content`，同时取得验证集、商品快照、
-   标签和原因；校验 Agent。该提示词即本次基础版本，不再查询其他提示词；修改只能派生
-   新草稿，不得覆盖它。
+   标签和原因；校验 Agent。该提示词即本次基础版本，不再查询其他提示词。
    一次最多分析 10 条，不得自行调大 `page_size`：单批 20 条会带回 20 组商品快照，挤占
    上下文并导致前批阶段结论被压缩丢失。还有更多时报告剩余数。用户要求继续时查询下一页；
    必须保持同一任务 ID 和 `PromptVersionBaseInfo.prompt_version_id`，并按
