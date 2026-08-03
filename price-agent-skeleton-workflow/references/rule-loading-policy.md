@@ -80,7 +80,7 @@
 
 ## 结果校验
 
-仅当 `resp_code=1` 时处理返回内容。以下属于关键数据不完整，按 `SKILL.md` 的失败规则停止：
+仅当 `resp_code=1` 时处理返回内容。以下属于关键数据不完整，按 [SKILL.md](../SKILL.md) 的失败规则停止：
 
 - `price_rule_json` 为空，或无法解析为 JSON；
 - `include_special_rule=1` 但 `special_rule_json` 为空；

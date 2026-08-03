@@ -52,7 +52,7 @@
 用户明确确认后调用**一次**
 `tool_edit_prompt_skeleton(rule_group_id=当前业务上下文.ruleGroupId, prompt_version_id=<基础提示词ID；从零新建传0>, prompt_content=<S3 已校验的完整内容>, change_reason=<变更原因>, diff_content=<已展示Diff；从零新建传"">, source_type=2, operator=当前业务上下文.operator)`。
 
-`prompt_content` 必须与 S3 校验时提交的内容完全一致。按 `SKILL.md` 的新草稿成功规则校验，
+`prompt_content` 必须与 S3 校验时提交的内容完全一致。按 [SKILL.md](../SKILL.md) 的新草稿成功规则校验，
 返回名称、ID 与版本关系。不自动运行验证或发布。
 
 调用超时或返回不完整时，先调用 S1 取得 `data.latest_draft_prompt_version_id`，再按该 ID

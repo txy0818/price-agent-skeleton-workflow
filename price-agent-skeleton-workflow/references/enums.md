@@ -60,7 +60,7 @@ Badcase 分析流程固定使用 `label_filter=3`。
 | 值 | 含义 | 处理 |
 |---:|---|---|
 | 1 | 成功 | 继续读取 `data` |
-| 其他 | 失败 | 按 `SKILL.md` 的失败与重试规则处理，并向用户说明 `resp_desc` |
+| 其他 | 失败 | 按 [SKILL.md](../SKILL.md) 的失败与重试规则处理，并向用户说明 `resp_desc` |
 
 `resp_code=1` 只表示调用成功，不表示 `data` 内容完整。各流程仍需按自身要求校验关键字段非空。
 
@@ -71,7 +71,7 @@ Badcase 分析流程固定使用 `label_filter=3`。
 | false | 按 `prompt_version_id` 或 `version_name` 精确查询 |
 | true | 查询当前线上版本，忽略 ID 与名称 |
 
-仅在 `base-version-policy.md` 允许的情况下（用户明确同意，或发布流程查询当前线上版本）
+仅在 [base-version-policy.md](base-version-policy.md) 允许的情况下（用户明确同意，或发布流程查询当前线上版本）
 才可传 `true`。
 
 ## 发布准确率门禁

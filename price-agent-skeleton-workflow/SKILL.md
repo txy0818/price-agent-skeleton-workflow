@@ -27,7 +27,7 @@ description: 为 PriceStudio 新建、修改、保存或发布同款判定提示
 
 ### 提示词写入
 
-- 展示提案前必须按 `shared-steps.md` 的 `[S3]` 完成格式校验；未通过不展示提案，
+- 展示提案前必须按 [shared-steps.md](references/shared-steps.md) 的 `[S3]` 完成格式校验；未通过不展示提案，
   也不调用任何写入或发布 MCP。校验通过的那份内容原样保留至写入，确认后不得重新生成、
   重排、补写或裁剪。
 - 修改类流程默认只展示 Diff，不展开提示词全文；仅当用户明确要求「展开完整提示词」时
@@ -44,12 +44,12 @@ description: 为 PriceStudio 新建、修改、保存或发布同款判定提示
 
 根据用户目标读取最少必要的 workflow：
 
-- 新建提示词：`references/new-skeleton-workflow.md`
-- 修改或优化提示词（含用户直接提出的规则新增、删除或调整）：`references/edit-skeleton-workflow.md`
-- 验证任务中的单条 Badcase：`references/badcase-single-workflow.md`
-- 整次验证任务 Badcase：`references/badcase-task-workflow.md`
-- 用户直接描述 Badcase：`references/badcase-description-workflow.md`
-- 发布提示词：`references/publish-workflow.md`
+- 新建提示词：[new-skeleton-workflow.md](references/new-skeleton-workflow.md)
+- 修改或优化提示词（含用户直接提出的规则新增、删除或调整）：[edit-skeleton-workflow.md](references/edit-skeleton-workflow.md)
+- 验证任务中的单条 Badcase：[badcase-single-workflow.md](references/badcase-single-workflow.md)
+- 整次验证任务 Badcase：[badcase-task-workflow.md](references/badcase-task-workflow.md)
+- 用户直接描述 Badcase：[badcase-description-workflow.md](references/badcase-description-workflow.md)
+- 发布提示词：[publish-workflow.md](references/publish-workflow.md)
 - 纯查询（查看 Agent、提示词、规则、验证任务或结果，不产生任何修改）：不加载 workflow，
   直接调用对应只读 MCP，并按本文件的失败与重试规则处理。
 
@@ -58,10 +58,10 @@ description: 为 PriceStudio 新建、修改、保存或发布同款判定提示
 
 单一目标只读取对应的一个文件；用户明确提出多个目标时，读取对应的多个文件并按依赖顺序执行，不得加载无关 workflow。单条与整次 Badcase 同时分析时复用任务查询结果，并按 case ID 去重。用户同时要求分析、修改和发布时，依次完成“分析 → 新提示词草稿 → 验证 → 发布确认”，不得跳步。
 
-各 workflow 引用的 `[S1]`~`[S5]` 定义在 `references/shared-steps.md`；加载任何 workflow 时同时读取。
-基础提示词版本的选择统一按 `references/base-version-policy.md`。
-`[S2]` 展开的规则与映射按需加载规则在 `references/rule-loading-policy.md`。
+各 workflow 引用的 `[S1]`~`[S5]` 定义在 [shared-steps.md](references/shared-steps.md)；加载任何 workflow 时同时读取。
+基础提示词版本的选择统一按 [base-version-policy.md](references/base-version-policy.md)。
+`[S2]` 展开的规则与映射按需加载规则在 [rule-loading-policy.md](references/rule-loading-policy.md)。
 对 `version_status`、`task_status`、`label_filter`、`source_type`、`include_special_rule`
-等取值含义存疑时，读取 `references/enums.md`。
+等取值含义存疑时，读取 [enums.md](references/enums.md)。
 
-生成或重组完整提示词时，按当前 workflow 的指引读取格式与转换指南。`full-skeleton-example.md` 是补充参考，不代表当前业务事实，默认不加载；仅在用户明确要求查看完整示例时读取。
+生成或重组完整提示词时，按当前 workflow 的指引读取格式与转换指南。[full-skeleton-example.md](references/full-skeleton-example.md) 是补充参考，不代表当前业务事实，默认不加载；仅在用户明确要求查看完整示例时读取。
