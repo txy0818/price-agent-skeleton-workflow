@@ -1,29 +1,26 @@
 # 新建提示词
 
-只创建提示词草稿。
+只创建提示词草稿。共享步骤见 [shared-steps.md](shared-steps.md)。
 
 ## 查询与生成
 
-1. 调用
-   `query_agent_detail(agent_id=当前业务上下文.agentId, operator=当前业务上下文.operator)`
-   查询 Agent 详情。仅当 `base_resp.resp_code=1` 时读取 `data.card.agent_name`、
-   `data.card.rule_group_id`、`data.card.category_ids_str`、`data.current_prompt_version_id`
-   和 `data.latest_draft_prompt_version_id`。所有 MCP 结果按 `SKILL.md` 的失败与重试规则处理。
-2. 线上和草稿 ID 都为 `0` 时从零生成；任一非零时先查询并展示已有版本，询问“基于指定版本修改”还是“仍从零创建”。确认前不生成、不写入。
-3. 按 [rule-loading-policy.md](rule-loading-policy.md) 加载当前查询作用域下有效的
-   `price_rule_json`、`special_rule_json` 和 `data_table_json`。必须先进行 Hash
-   校验；命中且历史完整 JSON 仍可见时复用，否则按策略取得完整 JSON。
+1. 执行 `[S1]` 查询 Agent，读取 `data.card.agent_name`、`data.card.rule_group_id`、
+   `data.card.category_ids_str`、`data.current_prompt_version_id` 和
+   `data.latest_draft_prompt_version_id`。
+2. 按 [base-version-policy.md](base-version-policy.md) 的「新建类」处理：线上和草稿 ID
+   都为 `0` 时从零生成；任一非零时先展示已有版本，询问「基于指定版本修改」还是
+   「仍从零创建」。确认前不生成、不写入。
+3. 执行 `[S2]` 加载规则与映射，**取全量**：`compare_items` 传空，`include_special_rule=1`，
+   并调用 `tool_query_rule_data_table` 且 `table_types` 传空。新建骨架必须依据全部规则生成
+   全部生效比价项，不得按需裁剪，否则会漏掉本应生效的比价项。
 4. 从零生成时读取 [rule-transformation-guide.md](rule-transformation-guide.md) 和
    [skeleton-format.md](skeleton-format.md)；需要更多规则表达范式时才读取
-   [rule-writing-examples.md](rule-writing-examples.md)。完整参考示例
-   [full-skeleton-example.md](full-skeleton-example.md) 默认不加载，仅在用户明确要求查看完整示例时读取。
-5. 展示提案前调用
-   `tool_validate_prompt_skeleton(prompt_content=<生成的完整提示词>, operator=当前业务上下文.operator)`。
-   仅当 `base_resp.resp_code=1` 且 `data.valid=true` 时展示提案。`data.valid=false`
-   时根据 `data.errors` 修正完整提示词后重新校验，最多重试 2 次；仍未通过或 MCP
-   调用失败时，返回校验错误，不展示提案，也不调用任何写入或发布接口。
+   [rule-writing-examples.md](rule-writing-examples.md)。
+5. 执行 `[S3]` 生成并校验完整提示词。
 
 ## 提案
+
+从零新建没有 Diff 基线，按 `[S4]` 展示完整提示词：
 
 ````markdown
 ## 新建同款判定提示词提案
@@ -43,9 +40,5 @@
 
 ## 确认后
 
-调用一次
-`tool_edit_prompt_skeleton(rule_group_id=<规则组ID>, prompt_version_id=0, prompt_content=<已确认的完整内容>, change_reason=<新建原因>, diff_content="", source_type=2, operator=当前业务上下文.operator)`。
-
-仅按 `SKILL.md` 的新草稿成功规则校验并返回名称和 ID。提醒本次创建的后续修改、验证和发布使用新 ID；不自动验证或发布。调用超时或返回不完整时，先调用
-`query_agent_detail(agent_id=当前业务上下文.agentId, operator=当前业务上下文.operator)`
-取得 `data.latest_draft_prompt_version_id`，再按该 ID 精确查询并比对规则组、完整内容和创建信息；不能唯一确认就报告结果未知，不再次创建。
+执行 `[S5]`，`prompt_version_id=0`、`diff_content=""`、`change_reason` 写新建原因。
+提醒后续修改、验证和发布使用新 ID。

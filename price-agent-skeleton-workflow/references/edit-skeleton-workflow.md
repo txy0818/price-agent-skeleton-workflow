@@ -1,48 +1,57 @@
 # 修改提示词
 
-## 查询与提案
+用户要求修改、优化提示词，或直接要求新增、删除、调整某项判定规则，都走本流程。
+共享步骤见 [shared-steps.md](shared-steps.md)。
 
-1. 调用
-   `query_agent_detail(agent_id=当前业务上下文.agentId, operator=当前业务上下文.operator)`
-   查询 Agent 详情；仅当 `base_resp.resp_code=1` 时读取 `data`。所有 MCP 结果按
-   `SKILL.md` 的失败与重试规则处理。
-2. 调用
-   `tool_query_prompt_skeleton(rule_group_id=<真实规则组ID>, prompt_version_id=<可选提示词ID>, version_name=<可选提示词名称>, operator=当前业务上下文.operator, query_online=<是否查询线上版本>)`。
-   根据本轮输入填写参数，不得从历史或“刚才那个”推断；未提供的可选参数不传。
-   ID 和名称都有时按 ID 查询，并校验返回名称与用户输入一致。两者均未给时，先提示
-   “本轮未指定提示词名称或 ID，是否使用当前线上骨架作为本次修改的基础版本？”；
-   用户明确同意后才传 `query_online=true`，不同意则要求提供提示词 ID 或名称。
-   每次查询仅当 `base_resp.resp_code=1` 且 `data.prompt_version` 非空时视为成功。
-3. 归档、草稿或线上版本均可作为基础版本；任何修改都只能派生新的提示词草稿，不得覆盖基础版本。
-4. 按 [rule-loading-policy.md](rule-loading-policy.md) 加载当前查询作用域下有效的
-   `price_rule_json`、`special_rule_json` 和 `data_table_json`。必须先进行 Hash
-   校验；命中且历史完整 JSON 仍可见时复用，否则按策略取得完整 JSON。
-   结构或 JSON 变化时读取
-   [skeleton-format.md](skeleton-format.md)，需要规则范式时才读
+## 查询与判断
+
+1. 执行 `[S1]` 查询 Agent。
+2. 按 [base-version-policy.md](base-version-policy.md) 确定并查询基础提示词版本。
+3. **不调用验证任务或验证结果查询。** 用户只要求改规则时，模型不得自行发起
+   `tool_query_validation_result` 等验证类查询；需要依据验证数据分析时属于 Badcase 流程，
+   由用户明确提出后按对应 workflow 处理。
+4. 执行 `[S2]` 加载规则与映射，**按需取**：`compare_items` 传用户点明要改的比价项；
+   用户未点明具体比价项时，按 [rule-loading-policy.md](rule-loading-policy.md) 的
+   「定位目标比价项」，从基础提示词的 `## 比价项` 章节取得可选集合后按诉求定位；
+   诉求笼统（如「优化一下」）而无法定位到具体比价项时传空取全量。用户提到的名称对不上
+   可选集合时先向用户澄清，不擅自改写成相近名称。改动涉及品牌或材质判定时才调用
+   `tool_query_rule_data_table`，且只传相关 `table_types`。
+5. 对照取回的规则、映射与基础提示词判断本次修改是否合理。要求与业务规则冲突、缺少关键
+   条件或可能扩大误判时，说明冲突和需要确认的问题，停止且不生成草稿。
+6. 合理时生成最小必要修改，保留无关规则；未取回规则的比价项视为本轮不涉及，其对应章节
+   从基础提示词原样保留，既不改动也不删除。结构或 JSON 变化时读取
+   [skeleton-format.md](skeleton-format.md)，需要规则范式时才读取
    [rule-writing-examples.md](rule-writing-examples.md)。
+7. 执行 `[S3]` 生成并校验修改后的完整提示词。
+8. 基于基础版本与已校验内容计算 Diff。
+
+## 提案
+
+按 `[S4]` 展示：
 
 ````markdown
 ## 提示词修改提案
-- 基础提示词：`<名称>`（ID：`<ID>`，状态：`<线上/草稿>`）
+- Agent：`<名称；查不到时写ID>`
+- 基础提示词：`<名称>`（ID：`<ID>`，状态：`<线上/草稿/归档>`）
 - 状态：尚未保存
-### 修改原因
-<依据、目标和不修改部分>
+### 合理性判断
+- 修改目标：<用户的原始要求或优化方向>
+- 规则与映射依据：<支持本次修改的规则依据>
+- 影响与风险：<适用范围、冲突和需要回归的项>
+- 不修改部分：<明确保留未改动的规则>
 ### Diff
 ```diff
 - <旧规则>
 + <新规则>
 ```
-### 修改后完整提示词
-```text
-<完整且未省略的提示词>
-```
-确认后创建新提示词草稿，不覆盖基础版本，也不自动发布。
+完整提示词已生成并通过格式校验，未在此展开。需查看请回复「展开完整提示词」。
+以上仅为修改提案。确认后创建新提示词草稿，不覆盖基础版本，也不自动发布。
+确认无误请回复：**确认创建提示词草稿**。
 ````
+
+诉求本身已经很明确时，「合理性判断」各项可以写得简短，但不得省略「影响与风险」和
+「不修改部分」——这两项用于确认改动范围没有超出预期。
 
 ## 确认后
 
-调用一次
-`tool_edit_prompt_skeleton(rule_group_id=<规则组ID>, prompt_version_id=<基础提示词ID>, prompt_content=<已确认的完整内容>, change_reason=<修改原因>, diff_content=<已展示Diff>, source_type=2, operator=当前业务上下文.operator)`。
-仅按 `SKILL.md` 的新草稿成功规则校验并返回名称和 ID；同时写出版本关系。本次变更的后续修改、验证和发布使用新 ID，不自动验证或发布。调用超时或返回不完整时，先调用
-`query_agent_detail(agent_id=当前业务上下文.agentId, operator=当前业务上下文.operator)`
-取得 `data.latest_draft_prompt_version_id`，再按该 ID 精确查询并比对基础版本、完整内容和创建信息；不能唯一确认就报告结果未知，不再次编辑。
+执行 `[S5]`，`prompt_version_id` 传基础提示词 ID，`change_reason` 写修改原因。
