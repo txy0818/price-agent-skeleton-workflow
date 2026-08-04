@@ -10,12 +10,14 @@
 2. 按 [base-version-policy.md](base-version-policy.md) 的「新建类」处理：线上和草稿 ID
    都为 `0` 时从零生成；任一非零时先展示已有版本，询问「基于指定版本修改」还是
    「仍从零创建」。确认前不生成、不写入。
-3. 执行 `[S2]` 加载规则与映射，**取全量**：`compare_items` 传空，`include_special_rule=1`，
-   并调用 `tool_query_rule_data_table` 且 `table_types` 传空。新建骨架必须依据全部规则生成
-   全部生效比价项，不得按需裁剪，否则会漏掉本应生效的比价项。
+3. 执行 `[S2]` 加载规则与映射，**取全量**：`category_ids` 传空、`include_special_rule=1`，
+   并调用 `tool_query_rule_data_table` 且 `table_types` 传空。
+   新建骨架必须依据全部规则生成全部生效比价项，不得按需裁剪，否则会漏掉本应生效的比价项。
 4. 从零生成时读取 [rule-transformation-guide.md](rule-transformation-guide.md) 和
    [skeleton-format.md](skeleton-format.md)；需要更多规则表达范式时才读取
-   [rule-writing-examples.md](rule-writing-examples.md)。
+   [rule-writing-examples.md](rule-writing-examples.md)。全文篇幅按
+   [skeleton-format.md](skeleton-format.md) 的「生成原则」控制在 1 万字以内；与「不得裁剪
+   生效比价项」冲突时以保留规则为先，改为精简行文或把过长映射表转为引用。
 5. 执行 `[S3]` 生成并校验完整提示词。
 
 ## 提案
@@ -40,5 +42,5 @@
 
 ## 确认后
 
-执行 `[S5]`，`prompt_version_id=0`、`diff_content=""`、`change_reason` 写新建原因。
+执行 `[S5]`，`prompt_version_id=0`。
 提醒后续修改、验证和发布使用新 ID。

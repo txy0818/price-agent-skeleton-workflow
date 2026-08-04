@@ -13,11 +13,12 @@
    `version_name`、`version_status` 和完整 `prompt_content`，同时取得验证集、商品快照、
    人工/模型标签和原因；校验 Agent 及页面非零 `datasetId`。该提示词即本次基础版本，
    不再查询其他提示词。
-4. 执行 `[S2]` 加载规则与映射，**按需取**：先按 `human_label` 与 `model_label` 判定错误方向，
-   再解析本条 `ToolValidationCaseResult.raw_llm_response`（为空时退回 `analysis_process`）中的
-   `extracted`，按 [rule-loading-policy.md](rule-loading-policy.md) 的「提取嫌疑比价项」
-   依该方向选出目标项作为 `compare_items`，`category_ids` 传本条 `category_id`；
-   选不出时传空取全量。嫌疑项涉及品牌或材质判定时才调用
+4. 执行 `[S2]` 加载规则与映射：`category_ids` 传本条样本的 `category_id`，
+   `include_special_rule=1`，取回该类目内全部比价项规则。另按 `human_label` 与 `model_label`
+   判定错误方向，并解析本条 `ToolValidationCaseResult.raw_llm_response`（为空时退回
+   `analysis_process`）中的 `extracted`，按
+   [rule-loading-policy.md](rule-loading-policy.md) 的「判定 Badcase 的错误方向」定位嫌疑项
+   —— 这一步用于归因而非查询入参。嫌疑项涉及品牌或材质判定时才调用
    `tool_query_rule_data_table`，且只传相关 `table_types`。另调用
    `tool_query_cdn_report(validation_task_id=<任务ID>, operator=当前业务上下文.operator)`
    取得报告链接。
@@ -55,8 +56,7 @@
 - 依据：<关键证据>
 - 建议与回归：<方案；无缺陷写“不建议修改提示词”>
 ```diff
-- <原规则>
-+ <建议规则>
+<原样引用 S3 返回的 data.diff_content>
 ```
 <有缺陷：完整提示词已生成并通过格式校验，未在此展开。需查看请回复「展开完整提示词」。
 请确认是否按以上建议创建新提示词草稿。>
@@ -69,5 +69,5 @@
 ## 确认后
 
 只有提示词缺陷且用户明确确认，才执行 `[S5]`，`prompt_version_id` 传
-`PromptVersionBaseInfo.prompt_version_id`，`change_reason` 写 Badcase 修复原因。
+`PromptVersionBaseInfo.prompt_version_id`。
 本轮不再输出 CDN。

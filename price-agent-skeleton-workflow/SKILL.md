@@ -32,6 +32,9 @@ description: 为 PriceStudio 新建、修改、保存或发布同款判定提示
   重排、补写或裁剪。
 - 修改类流程默认只展示 Diff，不展开提示词全文；仅当用户明确要求「展开完整提示词」时
   完整输出且不得省略。
+- 修改类流程的 Diff 一律取 `tool_validate_prompt_skeleton` 返回的 `data.diff_content`
+  并原样引用，不自行书写、改写或裁剪；两个写入 MCP 均不再接受 `diff_content` 入参。
+  发布流程的「线上→待发布」Diff 不经过该工具，属于唯一例外。
 - 用户确认修改后只能新建草稿版本，不得覆盖基础版本；保存草稿与发布线上是两个独立动作，
   分别取得用户确认。
 - 调用 `tool_edit_prompt_skeleton` 后，仅当返回成功、`new_prompt_version_id>0`、

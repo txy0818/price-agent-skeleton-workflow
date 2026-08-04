@@ -10,20 +10,21 @@
 3. **不调用验证任务或验证结果查询。** 用户只要求改规则时，模型不得自行发起
    `tool_query_validation_result` 等验证类查询；需要依据验证数据分析时属于 Badcase 流程，
    由用户明确提出后按对应 workflow 处理。
-4. 执行 `[S2]` 加载规则与映射，**按需取**：`compare_items` 传用户点明要改的比价项；
-   用户未点明具体比价项时，按 [rule-loading-policy.md](rule-loading-policy.md) 的
-   「定位目标比价项」，从基础提示词的 `## 比价项` 章节取得可选集合后按诉求定位；
-   诉求笼统（如「优化一下」）而无法定位到具体比价项时传空取全量。用户提到的名称对不上
-   可选集合时先向用户澄清，不擅自改写成相近名称。改动涉及品牌或材质判定时才调用
-   `tool_query_rule_data_table`，且只传相关 `table_types`。
+4. 执行 `[S2]` 加载规则与映射：`include_special_rule=1`；`category_ids` 仅在用户明确点名
+   类目时传该类目，否则传空，取回的是该范围内全部比价项规则。改动涉及品牌或材质判定时
+   才调用 `tool_query_rule_data_table`，且只传相关 `table_types`。
+   用户提到的比价项名称对不上取回的 `price_rule_json` 或基础提示词 `## 比价项` 章节时，
+   先向用户澄清，不擅自改写成相近名称。
 5. 对照取回的规则、映射与基础提示词判断本次修改是否合理。要求与业务规则冲突、缺少关键
    条件或可能扩大误判时，说明冲突和需要确认的问题，停止且不生成草稿。
 6. 合理时生成最小必要修改，保留无关规则；未取回规则的比价项视为本轮不涉及，其对应章节
    从基础提示词原样保留，既不改动也不删除。结构或 JSON 变化时读取
    [skeleton-format.md](skeleton-format.md)，需要规则范式时才读取
-   [rule-writing-examples.md](rule-writing-examples.md)。
+   [rule-writing-examples.md](rule-writing-examples.md)。改后全文篇幅仍按
+   [skeleton-format.md](skeleton-format.md) 的「生成原则」控制在 1 万字以内；基础提示词
+   本已超出时不借机大幅删减，只保证本次改动不再显著增长。
 7. 执行 `[S3]` 生成并校验修改后的完整提示词。
-8. 基于基础版本与已校验内容计算 Diff。
+8. Diff 由 `[S3]` 的 `data.diff_content` 给出，不自行计算或书写。
 
 ## 提案
 
@@ -41,8 +42,7 @@
 - 不修改部分：<明确保留未改动的规则>
 ### Diff
 ```diff
-- <旧规则>
-+ <新规则>
+<原样引用 S3 返回的 data.diff_content>
 ```
 完整提示词已生成并通过格式校验，未在此展开。需查看请回复「展开完整提示词」。
 以上仅为修改提案。确认后创建新提示词草稿，不覆盖基础版本，也不自动发布。
@@ -54,4 +54,4 @@
 
 ## 确认后
 
-执行 `[S5]`，`prompt_version_id` 传基础提示词 ID，`change_reason` 写修改原因。
+执行 `[S5]`，`prompt_version_id` 传基础提示词 ID。

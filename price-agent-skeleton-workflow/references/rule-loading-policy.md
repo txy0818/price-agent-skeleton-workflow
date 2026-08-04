@@ -1,30 +1,41 @@
 # 规则加载策略
 
 取得当前有效的 `price_rule_json`、`special_rule_json` 和 `data_table_json`。
-按当前流程的实际需要决定加载范围：新建骨架取全量，修改类流程只取相关部分。
+加载范围**只按类目收窄**：类目内的比价规则一律取全量，不再按比价项名称裁剪。
 
-## 为什么按需
+## 为什么只按类目
 
-完整规则与映射合计约 10~20k token，映射表占大头。新建骨架必须依据全部规则生成全部比价项，
-无法裁剪；修改类流程往往只涉及一到两个比价项，取全量会挤占上下文并让关键规则被无关内容淹没。
+完整规则与映射合计约 10~20k token，其中映射表占大头。按类目过滤后，`price_rule_json`
+只剩该类目生效的比价项，体量已经可控；真正需要控制的是映射表，由 `table_types` 负责。
+
+类目内不细分到单个比价项：比价项名称需要从模型输出或基础提示词中提取，拼写或方向判断
+一旦出错，取回的就是不完整规则，而空结果与“该比价项无规则”无法区分，静默接受会生成出
+缺失规则的提示词。类目内取全量则没有这个失败模式，且能让模型看到相邻比价项的规则，
+判断改动是否与其他项冲突。
 
 ## 加载范围
 
 ### 比价规则
 
-`tool_query_price_rule(rule_group_id=当前业务上下文.ruleGroupId, category_ids=<当前类目ID列表>, include_special_rule=<1或0>, compare_items=<按需比价项名称列表；全部时传空>, operator=当前业务上下文.operator)`
+`tool_query_price_rule(rule_group_id=当前业务上下文.ruleGroupId, category_ids=<相关类目ID列表>, include_special_rule=1, operator=当前业务上下文.operator)`
 
-`compare_items` 传空表示返回全部比价项，与 `category_ids` 传空的语义一致。
+- `include_special_rule` **一律传 `1`**：特殊规则承载例外与覆盖关系，缺失会导致改动与例外冲突。
+- `category_ids` 按流程取值，见下表；传空表示使用规则组关联的全部类目。
+- 返回该类目下全部比价项规则，不再按比价项名称过滤。
 
-| 流程 | `compare_items` | `include_special_rule` |
-|---|---|---|
-| 新建提示词 | 空（全量） | `1` |
-| 修改提示词、用户直接提规则要求 | 目标比价项；无法定位时传空 | 涉及特殊规则时 `1`，否则 `0` |
-| Badcase 分析 | 从模型输出定位的嫌疑比价项；定位不到时传空 | `1` |
+| 流程 | `category_ids` |
+|---|---|
+| 新建提示词 | 空（规则组全部类目） |
+| 修改提示词、用户直接提规则要求 | 用户点明类目时传该类目；未点明时传空 |
+| 单条 Badcase | 本条样本的 `category_id` |
+| 整次任务 Badcase | 本批样本 `category_id` 的去重集合 |
+| 用户描述 Badcase | 能确定类目时传该类目；否则传空 |
+
+类目必须对齐：规则按类目生效，类目不一致会取回无关规则。
 
 ### 映射表
 
-`tool_query_rule_data_table(rule_group_id=当前业务上下文.ruleGroupId, category_ids=<当前类目ID列表>, table_types=<需要的类型；全部时传空>, operator=当前业务上下文.operator)`
+`tool_query_rule_data_table(rule_group_id=当前业务上下文.ruleGroupId, category_ids=<相关类目ID列表>, table_types=<需要的类型；全部时传空>, operator=当前业务上下文.operator)`
 
 当前已知取值为 `brand_mapping`（母子品牌）和 `material_mapping`（材质分组）。
 **遇到未列出的映射类型时不得自行编造 `table_types` 取值**，改为传空取全部。
@@ -39,28 +50,18 @@
 `material_mapping`。仅调整价格阈值、标题匹配方式、数量或尺码等与映射无关的规则时不调用
 本工具。无法判断改动是否涉及映射时，按涉及处理并传空取全部。
 
-## 定位目标比价项
+映射表是本策略中唯一仍需裁剪的部分：单张表可达数千字符，全量取回会挤占上下文。
 
-比价项名称是业务中文名（如品牌、货号、材质、厚薄、外观、数量、尺码、克重），且随规则组
-变化。**必须从本轮真实数据中提取，不得凭记忆或猜测拼写。** 允许的来源只有以下三类：
+## 判定 Badcase 的错误方向
 
-1. **Badcase 类流程**：解析 `ToolValidationCaseResult.raw_llm_response`（为空时退回
-   `analysis_process`）中的 `extracted` 对象，其 key 即该次判定实际生效的比价项清单。
-   按 [提取嫌疑比价项](#提取嫌疑比价项) 选出目标项。
-2. **修改类流程**：读取基础提示词 `prompt_content` 的 `## 比价项` 章节，其中的比价项名称
-   即可选集合；再结合用户诉求选出目标项。
-3. **用户明确指名**：用户本轮直接点明要改哪个比价项时优先采用，但仍需确认该名称存在于
-   上述任一来源中；对不上时向用户澄清，不擅自改写成相近名称。
-
-以上来源都不可用，或提取到的名称无法与可选集合对应时，**一律传空 `compare_items` 取全量**，
-不得传入未经确认的名称。
-
-### 提取嫌疑比价项
-
-先按 `human_label`、`model_label` 判定错误方向，再据此决定在 `extracted` 中找哪一类项。
+不用于缩小规则查询范围，但仍是**分析**的必要步骤：方向决定在模型输出中找哪一类项，
 方向不同则排查路径不同，不得不分方向地一律套用同一条筛选条件。
 
-| `human_label` | `model_label` | 错误方向 | 在 `extracted` 中选取 |
+先按 `human_label`、`model_label` 判定方向，再解析
+`ToolValidationCaseResult.raw_llm_response`（为空时退回 `analysis_process`）中的
+`extracted`，据此定位嫌疑项：
+
+| `human_label` | `model_label` | 错误方向 | 在 `extracted` 中关注 |
 |---|---|---|---|
 | 1 同款 | 2 非同款 | 漏放：判定过严 | `match=false` 的项 |
 | 2 非同款 | 1 同款 | 误放：判定过宽 | `match=true` 但 `left.value` 或 `right.value` 为空或为 `缺失` 的项 |
@@ -72,22 +73,31 @@
 
 `key_diff_point` 非空时，其指向的比价项也纳入。同一样本命中多个方向时合并去重。
 
-按上表选不出任何项（如全部 `match=true` 且证据齐全）时无法定位，传空 `compare_items`
-取全量：此时误判原因通常是某条规则整体过宽，需要对比全部规则才能发现。
+嫌疑项用于**归因与说明**：`[S3]` 生成时据此确定要改哪一条规则。定位不到具体嫌疑项时，
+误判原因通常是某条规则整体过宽，改为对照该类目全部规则查找，不得因此跳过归因。
 
-`category_id` 必须与 `compare_items` 同时对齐：调用时 `category_ids` 传本条样本的
-`category_id`，规则按类目生效，类目不一致会取回无关规则。
+## 比价项名称的使用
+
+比价项名称是业务中文名（如品牌、货号、材质、厚薄、外观、数量、尺码、克重），且随规则组
+变化。写入提示词时**必须与真实数据一致，不得凭记忆或猜测拼写**。
+允许的来源只有以下三类：
+
+1. **Badcase 类流程**：`extracted` 对象的 key，即该次判定实际生效的比价项清单。
+2. **修改类流程**：基础提示词 `prompt_content` 的 `## 比价项` 章节标题。
+3. **本轮取回的 `price_rule_json`**：其中的比价项名称是权威来源。
+
+用户提到的名称对不上以上任一来源时向用户澄清，不擅自改写成相近名称。
 
 ## 结果校验
 
 仅当 `resp_code=1` 时处理返回内容。以下属于关键数据不完整，按 [SKILL.md](../SKILL.md) 的失败规则停止：
 
 - `price_rule_json` 为空，或无法解析为 JSON；
-- `include_special_rule=1` 但 `special_rule_json` 为空；
+- `special_rule_json` 为空（`include_special_rule` 恒为 `1`，因此为空即异常）；
 - 调用了 `tool_query_rule_data_table` 但 `data_table_json` 为空或无法解析。
 
-传入了 `compare_items` 却返回空规则集合时，不得据此认定"该比价项没有规则"，
-而应改为传空 `compare_items` 重新取全量后确认。名称拼写错误与规则确实不存在无法从
+指定 `category_ids` 却返回空规则集合时，不得据此认定“该类目没有规则”，
+而应改为传空 `category_ids` 重新取全量后确认。类目 ID 传错与规则确实不存在无法从
 空结果中区分，静默接受会导致生成出缺失规则的提示词。
 
 ## 使用
@@ -95,10 +105,10 @@
 `price_rule_json` 用于比价项、来源优先级和匹配逻辑；`special_rule_json` 用于特殊规则、
 适用范围和例外；`data_table_json` 用于母子品牌、材质分组等映射。
 
-**不得补充 MCP 未返回的规则或映射。** 按需加载时未取回的比价项规则视为本轮不涉及，
+**不得补充 MCP 未返回的规则或映射。** 按类目加载时未取回的比价项规则视为本轮不涉及，
 既不写入提示词的改动范围，也不据此删除提示词中已有的对应章节；修改类流程只改动目标
 比价项，其余章节从基础提示词原样保留。
 
 同一会话中已经取得且作用域一致的规则与映射，直接复用上文内容，不重复调用。
-`ruleGroupId`、`categoryIds`、`compare_items` 或 `table_types` 任一项与上次不同时，
-属于不同作用域，必须重新调用。
+`ruleGroupId`、`categoryIds` 或 `table_types` 任一项与上次不同时，属于不同作用域，
+必须重新调用。

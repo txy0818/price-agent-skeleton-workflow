@@ -16,14 +16,14 @@
    上下文并导致前批阶段结论被压缩丢失。还有更多时报告剩余数。用户要求继续时查询下一页；
    必须保持同一任务 ID 和 `PromptVersionBaseInfo.prompt_version_id`，并按
    `validation_case_id` 去重。
-4. 执行 `[S2]` 加载规则与映射，**按需取**：逐条先按 `human_label` 与 `model_label` 判定错误
-   方向，再解析本批 `ToolValidationCaseResult.raw_llm_response`（为空时退回
-   `analysis_process`）中的 `extracted`，按
-   [rule-loading-policy.md](rule-loading-policy.md) 的「提取嫌疑比价项」逐条选出嫌疑项，
-   将本批全部样本的嫌疑项**取并集并去重**后作为一次 `compare_items`，不为每条样本单独
-   调用；并集为空时传空取全量。`category_ids` 取本批样本 `category_id` 的去重集合，
-   跨类目时不得只传其中一个。并集中涉及品牌或材质判定时才调用
-   `tool_query_rule_data_table`，且只传相关 `table_types`。另调用
+4. 执行 `[S2]` 加载规则与映射：`category_ids` 取本批样本 `category_id` 的去重集合，
+   跨类目时不得只传其中一个；`include_special_rule=1`，取回这些类目内全部比价项规则。
+   另逐条按 `human_label` 与 `model_label` 判定错误方向，
+   并解析本批 `ToolValidationCaseResult.raw_llm_response`（为空时退回 `analysis_process`）
+   中的 `extracted`，按 [rule-loading-policy.md](rule-loading-policy.md) 的
+   「判定 Badcase 的错误方向」逐条定位嫌疑项 —— 这一步用于归因而非查询入参。
+   嫌疑项涉及品牌或材质判定时才调用 `tool_query_rule_data_table`，且只传相关 `table_types`。
+   另调用
    `tool_query_cdn_report(validation_task_id=<任务ID>, operator=当前业务上下文.operator)`
    取得报告链接。
 5. 逐条用 `source_item_json` 与 `candidate_item_json` 核对客观事实，再结合标题、主图、标签、
@@ -87,13 +87,13 @@
 2. 合并指向同一规则的重复建议；结合商品证据、比价规则和映射处理冲突。疑似人工标签错误、
    模型执行、映射或数据问题以及证据不足不得写入提示词。
 3. 基于 `PromptVersionBaseInfo.prompt_content` 执行 `[S3]` 生成并校验一份合并后的完整
-   提示词，同时产出一份最终 Diff。说明覆盖的批次、Badcase ID、尚未分析的数量和回归风险。
+   提示词，最终 Diff 取 `[S3]` 返回的 `data.diff_content`，不自行书写。说明覆盖的批次、
+   Badcase ID、尚未分析的数量和回归风险。
 4. 按 `[S4]` 展示最终 Diff，声明“尚未保存”，询问用户是否确认创建一个新提示词草稿；
    此时不得调用写入 MCP。
 
 ## 确认创建后
 
 只有最终整合结果存在提示词缺陷，且用户在看到最终 Diff 后明确确认，才执行 `[S5]`，
-`prompt_version_id` 传 `PromptVersionBaseInfo.prompt_version_id`，`change_reason` 写
-Badcase 修复原因，`diff_content` 使用最终展示且经用户确认的 Diff 正文（不含 Markdown 围栏）。
+`prompt_version_id` 传 `PromptVersionBaseInfo.prompt_version_id`。
 仅调用一次并创建一个新草稿，不为各批次分别创建草稿。本轮不再输出 CDN。
