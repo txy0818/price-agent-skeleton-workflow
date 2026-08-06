@@ -3,6 +3,13 @@
 初始化目标是用户指定的空草稿或空归档版本；确认写入时若服务端发现它仍为空则原地填写，
 若已非空则派生新草稿。线上版本禁止初始化。共享步骤见 [shared-steps.md](shared-steps.md)。
 
+## 格式必读门槛
+
+进入本 workflow 后，必须先完整读取 [skeleton-format.md](skeleton-format.md)，再生成骨架。
+该文件是初始化的强制格式规范，不是可选参考。不得仅根据 workflow 摘要、
+模型记忆、历史生成内容或 [full-skeleton-example.md](full-skeleton-example.md) 代替读取。
+未能完整读取时必须停止，不得生成正文、调用校验工具或展示提案。
+
 ## 查询与生成
 
 1. 要求用户本轮提供待初始化提示词 ID 或名称；未提供时先询问，不调用写入 MCP。
@@ -21,8 +28,8 @@
    比价项；母子品牌、材质分别最多 50 组，并在生成后再次删除跨行业和不确定项。禁止复制
    未过滤的全量映射；具体调用与过滤只以
    [rule-loading-policy.md](rule-loading-policy.md) 为准。
-5. 生成时读取 [rule-transformation-guide.md](rule-transformation-guide.md) 和
-   [skeleton-format.md](skeleton-format.md)；需要更多规则表达范式时才读取
+5. 确认已完整读取前置必读的 [skeleton-format.md](skeleton-format.md)，并读取
+   [rule-transformation-guide.md](rule-transformation-guide.md) 后再生成；需要更多规则表达范式时才读取
    [rule-writing-examples.md](rule-writing-examples.md)。全文篇幅按
    [skeleton-format.md](skeleton-format.md) 的「生成原则」控制在约 1 万字；与「不得裁剪
    生效比价项」冲突时以保留规则为先，改为精简行文或把过长映射表转为引用。

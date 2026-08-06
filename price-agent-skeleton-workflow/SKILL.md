@@ -8,6 +8,9 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
 ## 硬约束
 
 - `agentId` 非零、`operator` 非空；MCP schema 有 `operator` 时原样传入。缺失即停止。
+- 进入初始化流程后，在生成任何骨架正文前必须完整读取
+  [skeleton-format.md](references/skeleton-format.md)；不得凭模型记忆、历史回答或示例推测标准格式。
+  未读取成功时停止，不得进入生成、校验或提案。
 - `ruleGroupId` 使用当前业务上下文；缺失时仅可从本轮 `query_agent_detail.data.card.rule_group_id`
   取得，之后固定，不被其他返回覆盖。
 - 不猜 ID、规则或样本；流程必需的可选 ID 缺失时要求用户本轮补充。
@@ -40,7 +43,9 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
 每次只读取目标 workflow，并同时读取 [shared-steps.md](references/shared-steps.md) 和
 [base-version-policy.md](references/base-version-policy.md)：
 
-- 初始化：[initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md)
+- 初始化：必须同时完整读取
+  [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md) 和
+  [skeleton-format.md](references/skeleton-format.md)；后者是生成前置必读，不是按需参考。
 - 修改：[edit-skeleton-workflow.md](references/edit-skeleton-workflow.md)
 - 单条 Badcase：[badcase-single-workflow.md](references/badcase-single-workflow.md)
 - 整次任务 Badcase：[badcase-task-workflow.md](references/badcase-task-workflow.md)
@@ -49,6 +54,6 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
 
 目标语义不清但已给提示词 ID/名称时，可精确只读查询后按内容是否为空路由；其他情况先澄清。
 S2 读取 [rule-loading-policy.md](references/rule-loading-policy.md)。生成全文时按 workflow 读取
-[rule-transformation-guide.md](references/rule-transformation-guide.md) 与
+[rule-transformation-guide.md](references/rule-transformation-guide.md)；初始化必须已按上述前置门槛完整读取
 [skeleton-format.md](references/skeleton-format.md)。枚举存疑时读取 [enums.md](references/enums.md)；
 [full-skeleton-example.md](references/full-skeleton-example.md) 仅在用户明确要求完整示例时读取。
