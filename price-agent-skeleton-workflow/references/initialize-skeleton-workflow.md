@@ -1,7 +1,7 @@
 # 初始化提示词
 
-只原地填写用户指定的空草稿或空归档版本，不插入新版本；线上版本禁止初始化。共享步骤见
-[shared-steps.md](shared-steps.md)。
+初始化目标是用户指定的空草稿或空归档版本；确认写入时若服务端发现它仍为空则原地填写，
+若已非空则派生新草稿。线上版本禁止初始化。共享步骤见 [shared-steps.md](shared-steps.md)。
 
 ## 查询与生成
 
@@ -47,7 +47,7 @@
 ````text
 <完整且未省略的提示词>
 ````
-以上仅为提案。确认无误请回复：**确认初始化提示词版本**。确认后只原地填写该版本，不发布。
+以上仅为提案。确认无误请回复：**确认初始化提示词版本**。确认后写入草稿，不发布。
 `````
 
 完整提示词全文必须一次性放入上述同一个四反引号 `text` 围栏中，不得拆成多个围栏，
@@ -56,7 +56,11 @@
 
 ## 确认后
 
-执行 `[S5]` 的 `INITIALIZE` 路径；只调用 `save_prompt_draft`，并传
-`base_prompt_version_id=selectedPromptVersionId`。缺失或为 0 时停止，不得改用
-`tool_edit_prompt_skeleton`。
-成功后返回同一个提示词 ID，并提醒后续修改、验证和发布使用该 ID。
+执行 `[S5]` 的 `INITIALIZE` 路径；只调用 `tool_edit_prompt_skeleton`，并传
+`prompt_version_id=selectedPromptVersionId`。缺失或为 0 时停止，不得改用
+`save_prompt_draft`。
+
+服务端会在事务内重新查询该 ID 的 `prompt_content`：仍为空则原地填写，返回的
+`new_prompt_version_id=selectedPromptVersionId`，对应 Diff 的 `base_prompt_version_id` 与
+`new_prompt_version_id` 也都写该 ID；若此时内容已非空，则新增一个提示词草稿。成功后返回
+工具实际返回的 `new_prompt_version_id`，并提醒后续修改、验证和发布都使用该 ID。

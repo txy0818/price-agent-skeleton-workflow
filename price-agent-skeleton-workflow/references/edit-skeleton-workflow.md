@@ -15,7 +15,7 @@
    线上版本立即停止；草稿或归档版本的 `prompt_content` 必须非空，为空时改走
    `initialize-skeleton` 初始化流程。
    非空时记录 `selectedPromptVersionId=data.prompt_version.prompt_version_id`，要求大于 0，
-   并锁定 `writeMode=EDIT`；后续不得切换为 `save_prompt_draft`。
+   并锁定 `writeMode=EDIT`；后续只调用 `tool_edit_prompt_skeleton`。
 3. **不调用验证任务或验证结果查询。** 用户只要求改规则时，模型不得自行发起
    `tool_query_validation_result` 等验证类查询；需要依据验证数据分析时属于 Badcase 流程，
    由用户明确提出后按对应 workflow 处理。

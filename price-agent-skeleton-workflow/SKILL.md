@@ -20,19 +20,20 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
   `tool_query_prompt_skeleton` 精确查询；不得用最新草稿、线上版本或历史选择替代。
 - 查询成功后立即保存不可变的 `selectedPromptVersionId=data.prompt_version.prompt_version_id`；
   必须大于 0。按内容锁定 `writeMode`：空 → `INITIALIZE`，非空 → `EDIT`。Badcase 遇空内容停止。
-- `writeMode` 一旦锁定，校验结果、`diffRecordId` 和用户确认都不得改变它：
-  `INITIALIZE` 只能调用 `save_prompt_draft`；`EDIT` 只能调用 `tool_edit_prompt_skeleton`。
+- `writeMode` 一旦锁定，校验结果、`diffRecordId` 和用户确认都不得改变它；两种模式确认后
+  都只调用 `tool_edit_prompt_skeleton`，并传锁定的 `selectedPromptVersionId`。
 - 提案前执行 [shared-steps.md](references/shared-steps.md) 的 S3；确认后写入内容必须与校验内容
   完全一致。修改类只展示服务端 `data.diff_content`，用户要求时才展开全文。
 - 线上版本禁止初始化和修改。草稿、归档版本按内容路由：空内容可初始化，非空内容可修改。
-- 初始化确认后用 `save_prompt_draft` 原地填写指定空版本；成功必须满足：返回成功、
-  `prompt_version_id=基础ID`、`version_no>0`、`version_name` 非空。
-- 修改或 Badcase 确认后用 `tool_edit_prompt_skeleton` 派生草稿；成功必须满足：返回成功、
-  `new_prompt_version_id>0` 且不同于基础 ID、`version_no>0`、`new_prompt_name` 非空。
+- `tool_edit_prompt_skeleton` 会在事务内查询基础版本正文：仍为空则原地填写，返回的
+  `new_prompt_version_id=基础ID`，Diff 的基础/新版本 ID 也都为该 ID；已非空则派生新草稿，
+  返回的 `new_prompt_version_id` 必须与基础 ID 不同。
+- 两种结果都必须满足：返回成功、`new_prompt_version_id>0`、`version_no>0`、
+  `new_prompt_name` 非空；后续修改、验证和发布一律使用返回的 `new_prompt_version_id`。
 - 不自动验证或发布。
 
 写入前必须再次检查：`writeMode` 与 MCP 匹配，且 `selectedPromptVersionId>0`。任一不满足就停止并
-重新精确查询，禁止把版本 ID 留空、传 0、改用另一个写入 MCP 或从其他字段猜 ID。
+重新精确查询，禁止把版本 ID 留空、传 0、改用 `save_prompt_draft` 或从其他字段猜 ID。
 
 ## 路由
 

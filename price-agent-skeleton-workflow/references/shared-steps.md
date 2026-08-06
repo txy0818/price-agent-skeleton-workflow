@@ -82,33 +82,30 @@ Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，
 
 | `writeMode` | 唯一允许的 MCP | 必传版本字段 |
 |---|---|---|
-| `INITIALIZE` | `save_prompt_draft` | `base_prompt_version_id=selectedPromptVersionId>0` |
+| `INITIALIZE` | `tool_edit_prompt_skeleton` | `prompt_version_id=selectedPromptVersionId>0` |
 | `EDIT` | `tool_edit_prompt_skeleton` | `prompt_version_id=selectedPromptVersionId>0` |
 
-字段缺失、为 0 或模式与 MCP 不匹配时，停止并重新执行精确查询；禁止调用写入接口。S3 返回的
-`diff_record_id` 仅供 `EDIT` 使用，**不得让 `INITIALIZE` 改走 `tool_edit_prompt_skeleton`**。
+字段缺失、为 0 或调用了其他写入 MCP 时，停止并重新执行精确查询；禁止调用写入接口。
 
-**初始化写入**：调用一次 `save_prompt_draft(rule_group_id=当前业务上下文.ruleGroupId,
-base_prompt_version_id=selectedPromptVersionId, prompt_content=<S3 已校验的完整内容>,
-operator=当前业务上下文.operator)`。只允许原地填写该空版本；返回的 `prompt_version_id`
-必须与 `selectedPromptVersionId` 一致、`version_no>0`、`version_name` 非空。即使 S3 返回
-`diff_record_id>0`，也忽略该 ID，不得调用 `tool_edit_prompt_skeleton`。
-
-**修改写入**：调用一次 `tool_edit_prompt_skeleton`。入参按 `[S3]` 返回的
+**初始化和修改写入**：都只调用一次 `tool_edit_prompt_skeleton`。入参按 `[S3]` 返回的
 `data.diff_record_id` 二选一，不要把两条路径的字段混传：
 
 **路径一（`diff_record_id > 0`，优先）** —— 内容已在服务端，只传 ID：
-`tool_edit_prompt_skeleton(rule_group_id=当前业务上下文.ruleGroupId, prompt_version_id=selectedPromptVersionId, operator=当前业务上下文.operator, source_type=2, prompt_diff_record_id=<S3 返回的 diff_record_id>)`。
+`tool_edit_prompt_skeleton(rule_group_id=当前业务上下文.ruleGroupId, prompt_version_id=selectedPromptVersionId, operator=当前业务上下文.operator, source_type=<INITIALIZE 传3；EDIT传2>, prompt_diff_record_id=<S3 返回的 diff_record_id>)`。
 
 不传 `prompt_content`：服务端一律以库中记录为准，传了也会被忽略。
 
 **路径二（`diff_record_id = 0`，兜底）** —— 逐项传入内容：
-`tool_edit_prompt_skeleton(rule_group_id=当前业务上下文.ruleGroupId, prompt_version_id=selectedPromptVersionId, prompt_content=<S3 已校验的完整内容>, operator=当前业务上下文.operator, source_type=2, conversation_id=当前业务上下文.localConversationId)`。
+`tool_edit_prompt_skeleton(rule_group_id=当前业务上下文.ruleGroupId, prompt_version_id=selectedPromptVersionId, prompt_content=<S3 已校验的完整内容>, operator=当前业务上下文.operator, source_type=<INITIALIZE 传3；EDIT传2>, conversation_id=当前业务上下文.localConversationId)`。
 
 `prompt_content` 必须与 S3 校验时提交的内容完全一致。`conversation_id` 用于补齐这条草稿的
 来源留档（diff 由服务端自行计算，无需传入），缺失不影响草稿创建。
 
-两条路径都按 [SKILL.md](../SKILL.md) 的新草稿成功规则校验，返回名称、ID 与版本关系。
+服务端在事务内锁定并查询 `prompt_version_id` 对应版本的 `prompt_content`：为空（`null`、
+空串或仅空白）时原地填写，返回的 `new_prompt_version_id=selectedPromptVersionId`，Diff 记录的
+`base_prompt_version_id`、`new_prompt_version_id` 也都为该 ID；非空时新增草稿，返回的
+`new_prompt_version_id` 与基础 ID 不同。两条内容来源路径都按 [SKILL.md](../SKILL.md) 的成功
+规则校验，并把工具实际返回的 ID、名称和版本关系告知用户；后续修改、验证和发布使用该 ID。
 不自动运行验证或发布。
 
 返回“该修改建议已处理或已失效”时，说明该建议已被其他路径写入，**不得重试、不得改走兜底
