@@ -14,15 +14,20 @@
    - `version_status=1/3` 且内容为空 → 作为待初始化版本继续；空指 `null`、空串或仅空白；
    - `version_status=1/3` 且内容非空 → 说明该版本已经初始化，直接提示用户，本次不初始化；
    - 其他状态或归属不一致 → 停止并说明真实状态。
+   内容为空且状态允许时，立即记录
+   `selectedPromptVersionId=data.prompt_version.prompt_version_id` 并锁定
+   `writeMode=INITIALIZE`；ID 必须大于 0，否则停止。后续不得改写这两个值。
 4. 按 `[S2]` 的初始化范围加载全部关联类目规则及过滤后的品牌、材质关系。保留所有生效
-   比价项，禁止复制未过滤的全量映射；具体调用与过滤只以
+   比价项；母子品牌、材质分别最多 50 组，并在生成后再次删除跨行业和不确定项。禁止复制
+   未过滤的全量映射；具体调用与过滤只以
    [rule-loading-policy.md](rule-loading-policy.md) 为准。
 5. 生成时读取 [rule-transformation-guide.md](rule-transformation-guide.md) 和
    [skeleton-format.md](skeleton-format.md)；需要更多规则表达范式时才读取
    [rule-writing-examples.md](rule-writing-examples.md)。全文篇幅按
    [skeleton-format.md](skeleton-format.md) 的「生成原则」控制在约 1 万字；与「不得裁剪
    生效比价项」冲突时以保留规则为先，改为精简行文或把过长映射表转为引用。
-6. 执行 `[S3]` 生成并校验完整提示词，`base_prompt_version_id` 传待初始化版本 ID。
+6. 执行 `[S3]` 生成并校验完整提示词，`base_prompt_version_id=selectedPromptVersionId`。
+   S3 返回的 `diff_record_id` 不改变 `writeMode=INITIALIZE`。
 
 ## 提案
 
@@ -47,5 +52,7 @@
 
 ## 确认后
 
-执行 `[S5]` 的“初始化写入”路径，`base_prompt_version_id` 传待初始化版本 ID。
+执行 `[S5]` 的 `INITIALIZE` 路径；只调用 `save_prompt_draft`，并传
+`base_prompt_version_id=selectedPromptVersionId`。缺失或为 0 时停止，不得改用
+`tool_edit_prompt_skeleton`。
 成功后返回同一个提示词 ID，并提醒后续修改、验证和发布使用该 ID。

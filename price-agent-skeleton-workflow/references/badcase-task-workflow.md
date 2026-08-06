@@ -15,6 +15,8 @@
    该提示词即本次基础版本，不再查询其他提示词。
    `prompt_content` 必须非空；为 `null`、空串或仅空白字符时立即停止，说明任务提示词尚未
    初始化，不能进行 Badcase 归因、分批分析或整合修改。
+   记录 `selectedPromptVersionId=PromptVersionBaseInfo.prompt_version_id`，要求大于 0，
+   并锁定 `writeMode=EDIT`。
    一次最多分析 10 条，不得自行调大 `page_size`：每条会带回两组商品快照和整段
    `raw_llm_response`，单批 20 条会挤占上下文并导致前批阶段结论被压缩丢失。还有更多时报告剩余数。
    用户要求继续时查询下一页；
@@ -106,6 +108,6 @@
 
 ## 确认创建后
 
-只有最终整合结果存在提示词缺陷，且用户在看到最终 Diff 后明确确认，才执行 `[S5]`，
-`prompt_version_id` 传 `PromptVersionBaseInfo.prompt_version_id`。
+只有最终整合结果存在提示词缺陷，且用户在看到最终 Diff 后明确确认，才执行 `[S5]` 的
+`EDIT` 路径，`prompt_version_id=selectedPromptVersionId`。
 仅调用一次并创建一个新草稿，不为各批次分别创建草稿。本轮不再输出 CDN。

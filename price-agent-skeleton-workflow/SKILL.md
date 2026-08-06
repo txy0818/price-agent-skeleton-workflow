@@ -18,7 +18,10 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
 
 - 初始化、修改和 Badcase 修改必须取得用户本轮指定的提示词 ID 或名称，并通过
   `tool_query_prompt_skeleton` 精确查询；不得用最新草稿、线上版本或历史选择替代。
-- 按 `prompt_content` 路由：空 → 初始化；非空 → 修改或 Badcase。Badcase 遇空内容立即停止。
+- 查询成功后立即保存不可变的 `selectedPromptVersionId=data.prompt_version.prompt_version_id`；
+  必须大于 0。按内容锁定 `writeMode`：空 → `INITIALIZE`，非空 → `EDIT`。Badcase 遇空内容停止。
+- `writeMode` 一旦锁定，校验结果、`diffRecordId` 和用户确认都不得改变它：
+  `INITIALIZE` 只能调用 `save_prompt_draft`；`EDIT` 只能调用 `tool_edit_prompt_skeleton`。
 - 提案前执行 [shared-steps.md](references/shared-steps.md) 的 S3；确认后写入内容必须与校验内容
   完全一致。修改类只展示服务端 `data.diff_content`，用户要求时才展开全文。
 - 线上版本禁止初始化和修改。草稿、归档版本按内容路由：空内容可初始化，非空内容可修改。
@@ -27,6 +30,9 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
 - 修改或 Badcase 确认后用 `tool_edit_prompt_skeleton` 派生草稿；成功必须满足：返回成功、
   `new_prompt_version_id>0` 且不同于基础 ID、`version_no>0`、`new_prompt_name` 非空。
 - 不自动验证或发布。
+
+写入前必须再次检查：`writeMode` 与 MCP 匹配，且 `selectedPromptVersionId>0`。任一不满足就停止并
+重新精确查询，禁止把版本 ID 留空、传 0、改用另一个写入 MCP 或从其他字段猜 ID。
 
 ## 路由
 

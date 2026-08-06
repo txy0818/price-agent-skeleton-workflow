@@ -15,6 +15,8 @@
    校验 Agent 及页面非零 `datasetId`。该提示词即本次基础版本，不再查询其他提示词。
    `prompt_content` 必须非空；为 `null`、空串或仅空白字符时立即停止，说明任务提示词尚未
    初始化，不能进行 Badcase 归因或修改。
+   记录 `selectedPromptVersionId=PromptVersionBaseInfo.prompt_version_id`，要求大于 0，
+   并锁定 `writeMode=EDIT`。
 4. 按 `[S2]` 使用本条样本类目加载规则与必要映射。按 `human_label`、`model_label` 和
    `raw_llm_response`（为空时用 `analysis_process`）中的 `extracted`，依照
    [rule-loading-policy.md](rule-loading-policy.md) 的「Badcase 方向」定位嫌疑项。另调用
@@ -79,6 +81,6 @@
 
 ## 确认后
 
-只有提示词缺陷且用户明确确认，才执行 `[S5]`，`prompt_version_id` 传
-`PromptVersionBaseInfo.prompt_version_id`。
+只有提示词缺陷且用户明确确认，才执行 `[S5]` 的 `EDIT` 路径，
+`prompt_version_id=selectedPromptVersionId`。
 本轮不再输出 CDN。

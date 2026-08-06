@@ -10,6 +10,8 @@
    本流程没有任务上下文自带的提示词，本轮未提供 ID 或名称时必须要求用户补充。
    查询结果的 `prompt_content` 必须非空；为 `null`、空串或仅空白字符时立即停止，说明该
    提示词尚未初始化，不能进行 Badcase 归因或修改，并建议先进入初始化提示词流程。
+   非空时记录 `selectedPromptVersionId=data.prompt_version.prompt_version_id`，要求大于 0，
+   并锁定 `writeMode=EDIT`。
 2. 从本轮输入提取左右商品标题、属性、主图、人工标签、模型结论和模型理由；
    不得把缺失信息补写成事实。
 3. 按 `[S2]` 加载争议范围内的规则与必要映射。本流程没有真实验证结果，争议项从用户描述与
@@ -51,5 +53,5 @@
 
 ## 确认后
 
-只有证据充分、确认属于提示词缺陷且用户明确确认，才执行 `[S5]`，
-`prompt_version_id` 传基础提示词 ID。
+只有证据充分、确认属于提示词缺陷且用户明确确认，才执行 `[S5]` 的 `EDIT` 路径，
+`prompt_version_id=selectedPromptVersionId`。
