@@ -17,6 +17,9 @@
 
 ## S3 生成并校验完整提示词
 
+这里的「生成完整提示词」是工具调用和后续写入所需的内部步骤，不代表允许在提案中输出全文。
+修改类流程必须继续执行 S4 的展示边界；S3 产生的全文不得直接进入用户可见回复。
+
 生成完整提示词后，展示提案前调用
 `tool_validate_prompt_skeleton(prompt_content=<生成的完整提示词>, operator=当前业务上下文.operator,
 conversation_id=当前业务上下文.localConversationId,
@@ -58,7 +61,8 @@ Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，
 
 - **修改类流程**（含 Badcase 修复）：只展示 Diff，不展开提示词全文。Diff 正文原样取
   `[S3]` 返回的 `data.diff_content`，套上 `diff` 语言标记的代码围栏输出；内容为空或提示
-  无差异时如实说明，不自造 Diff。
+  无差异时如实说明，不自造 Diff。禁止在 Diff 前后附加完整提示词或以「第 1/N 段」方式
+  分段输出全文。
 - **初始化空草稿或空归档版本**：没有有效正文基线（`data.diff_content` 为空），展示完整提示词。
 
 结构完整性由 S3 保证。
