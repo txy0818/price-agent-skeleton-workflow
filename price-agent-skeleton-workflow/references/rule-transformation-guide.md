@@ -6,19 +6,21 @@
 
 只使用以下业务内容：
 
-- `tool_query_price_rule.data.price_rule_json`：比价项、信息来源、匹配逻辑及适用范围。
-- `tool_query_price_rule.data.special_rule_json`：特殊条件、例外和覆盖规则。
-- `tool_query_rule_data_table.data.data_table_json`：母子品牌、材质分组等映射。
+- `radar_query_price_rule.data.labelCateRule`：类目、业务线、搜索方式、比价项、信息来源和匹配逻辑。
+- `radar_query_brand_relation.data.groups[]`：经可信品牌关键词和当前作用域约束后的主子品牌关系。
+- `radar_query_material_relation`：按当前 `cateName`、`belongBusiness` 过滤后的同款材质关系。
 
 JSON 缺失、为空或无法解析时停止，不使用参考示例补齐。
 
 ## 转换步骤
 
-1. 从 `price_rule_json` 提取当前类目的比价项列表。一个 `compareItem` 对应提示词中的一个比价项章节，以及输出 JSON `extracted` 中的一个字段。
+1. 从 `labelCateRule.ruleTableInfo.ruleTableInfo[]` 提取当前类目的比价项列表。一个 `compareItem` 对应提示词中的一个比价项章节，以及输出 JSON `extracted` 中的一个字段。
 2. 将 `infoSource` 转成“抽取优先级”。保留原始 `>`、`=`、`/`、左右侧差异和兜底条件，不自行简化或改序。
 3. 将 `compareLogic` 转成“匹配规则”。只有输入 JSON 或已查询数据提供具体定义时才展开；只有逻辑名称时不得凭参考示例补写细则。
-4. 将 `special_rule_json` 按适用范围放入总原则或对应比价项的“例外和边界”。特殊规则与普通规则冲突时，以适用的特殊规则为准，并写明生效条件。
-5. 从 `data_table_json` 仅提取当前比价项需要的映射。映射较长时保留必要分组和明确引用，不虚构、不使用示例中的旧数据。
+4. 将响应中明确返回的特殊条件和适用范围放入总原则或对应比价项的“例外和边界”；未返回时不得补写。
+5. 主子品牌与材质关系只使用按 [rule-loading-policy.md](rule-loading-policy.md) 过滤后的结果。
+   初始化时允许结合 `cateName + belongBusiness` 与业务常识排除明显无关候选；映射较长时
+   保留当前类目必要分组，其余写成运行时查询指令，禁止复制全量候选。
 6. 按 [skeleton-format.md](skeleton-format.md) 生成角色、输入说明、执行步骤、判定规则、映射表、图片说明和 JSON 输出格式。
 
 ## 简短示例
@@ -62,5 +64,5 @@ JSON 缺失、为空或无法解析时停止，不使用参考示例补齐。
 - 是否遗漏或改变 `infoSource` 的优先级与左右侧差异？
 - 是否把逻辑名称误写成未经查询的详细规则？
 - 是否完整保留适用的特殊规则、条件和例外？
-- 是否只使用 `data_table_json` 中真实存在的映射？
+- 是否只使用关系工具真实返回且通过当前类目、业务线过滤的映射？
 - 是否加入了输入 JSON 没有的比价项、阈值或业务事实？
