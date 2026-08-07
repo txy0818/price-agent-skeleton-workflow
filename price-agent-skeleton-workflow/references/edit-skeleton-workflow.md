@@ -5,6 +5,12 @@
 草稿，不是规则组首个 Prompt 的 `INITIALIZE`。
 共享步骤见 [shared-steps.md](shared-steps.md)。
 
+> **无方向优化（修改流程硬约束）**：`promptVersionId>0` 且用户仅说“优化提示词/优化骨架”时，
+> 立即使用当前业务上下文中的该 ID 查询基础版本并继续本流程，不得要求用户补充提示词 ID、
+> 名称或优化方向。默认优化目标是：按 `skeleton-format.md` 修复格式，消除歧义、重复和前后矛盾，
+> 统一术语、Step、比价项与 JSON 输出约束，并依据本轮可信规则补齐确有依据的遗漏；不得发明
+> 规则、阈值或映射。
+
 > **格式优先级（修改流程硬约束）**：进入本流程后必须完整读取
 > [skeleton-format.md](skeleton-format.md)。生成的新正文必须完整满足该规范；其结构、章节顺序、
 > Step、比价项表达、映射表、图片说明和 JSON 输出格式，优先级高于基础 `prompt_content` 的
@@ -28,8 +34,10 @@
 
 1. 仅当业务上下文缺少 `ruleGroupId` 时执行 `[S1]`；已有则跳过。
 2. 按 [base-version-policy.md](base-version-policy.md) 确定并查询基础提示词版本。
-   线上版本立即停止；草稿或归档版本的 `prompt_content` 必须非空，为空时报告数据异常并停止，
-   不得改走初始化流程。
+   查询 ID 只取当前业务上下文 `promptVersionId`，即页面左侧选定的提示词；用户消息中的 ID 或
+   名称不得覆盖。线上、草稿或归档版本的 `prompt_content` 都必须非空，为空时报告数据异常并
+   停止，不得改走初始化流程。线上版本只作为基础读取，确认后必须派生新草稿，不覆盖线上版本，
+   也不得要求用户提供另一个草稿或归档版本 ID。
    非空时记录 `selectedPromptVersionId=data.prompt_version.prompt_version_id`，要求大于 0，
    并锁定 `writeMode=EDIT`；后续只调用 `tool_edit_prompt_skeleton`。
 3. 按 [skeleton-format.md](skeleton-format.md) 对基础正文做完整格式审计。若固定章节及顺序、
@@ -67,7 +75,8 @@
 ````markdown
 ## 提示词修改提案
 - Agent：`<名称；查不到时写ID>`
-- 基础提示词：`<名称>`（ID：`<ID>`，状态：`<草稿/归档>`）
+- 基础提示词：`<名称>`（ID：`<ID>`，状态：`<线上/草稿/归档>`）
+- 当前提示词来源：页面左侧选定的提示词（以当前业务上下文 `promptVersionId` 为准）
 - 修改建议 ID：`<原样引用 S3 返回的 data.diff_record_id>`
 - 状态：尚未保存
 ### 合理性判断

@@ -20,27 +20,38 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
 ## 提示词选择与写入
 
 - 提示词版本只取当前业务上下文的 `promptVersionId`，不再要求用户提供 ID 或名称，也不得从
-  用户文字、历史消息或查询结果猜测。`promptVersionId` 缺失或为 0 时只允许进入 `INITIALIZE`；
-  其他意图立即说明尚未初始化并停止。`promptVersionId>0` 时，只要用户要求“初始化骨架”、
-  “新建骨架”、“重新生成骨架”或“修改骨架”，一律进入
+  用户文字、历史消息或查询结果猜测。该字段代表页面左侧选定的提示词，优先级高于用户消息中
+  提到或输入的任何提示词 ID/名称；即使用户文字给出另一个 ID，也不得覆盖或切换。路由先只看
+  该字段：`promptVersionId` 缺失、为 0 或仍为
+  模板占位符时，统一进入 [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md)，
+  不再因用户说修改、优化、新增内容或 Badcase 而停止；`promptVersionId>0` 时再按意图区分。
+- `promptVersionId>0` 且用户要求“修改/优化提示词”、“新增/删除/调整某项内容”、“初始化骨架”、
+  “新建骨架”或“重新生成骨架”时，一律进入
   [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md)，使用该 ID 精确查询并锁定
   `writeMode=EDIT`；不得因“初始化/新建”字样停止或改走 `INITIALIZE`。确认后仍基于该版本
   创建一个新的骨架草稿，不覆盖原版本。
-- 上一条只适用于普通骨架操作。用户明确要求分析或处理 Badcase 时，必须进入对应 Badcase
+- `promptVersionId>0` 且用户明确要求分析或处理 Badcase 时，必须进入对应 Badcase
   workflow；只有分析确认属于 Prompt 缺陷后，才按该 workflow 的后续步骤提出修改建议，不能
   直接改走普通 `edit-skeleton`。
 - `EDIT` 生成完整正文时，[skeleton-format.md](references/skeleton-format.md) 的结构与格式约束
   优先级高于基础 `prompt_content` 的既有写法。基础正文格式不合理时必须一并修复到符合规范；
   对不冲突的业务规则、映射和用户本轮明确修改予以保留，不得借格式修复擅自改变业务含义。
+- `promptVersionId>0` 且用户只说“优化提示词/优化骨架”时，已经满足进入修改流程的条件，不得
+  再询问提示词 ID、名称或优化方向。未给方向时默认优化：按 `skeleton-format.md` 修复格式，
+  消除歧义、重复和前后矛盾，统一术语、Step、比价项和 JSON 输出约束，并根据本轮可信规则
+  检查确有依据的遗漏；不得凭空新增业务规则、阈值或映射。
 - 用户明确给出可直接落到提示词中的精确改动（例如“母子品牌新增：汾酒：竹叶青酒”）时，
   该文本就是本次修改目标：只查询基础提示词、做最小修改、校验并展示服务端 Diff。不得调用
   关系或规则 MCP 再证明用户输入，也不得因查询不到而拒绝、改写或反复权衡。
+- 用户查询“当前提示词/当前提示词内容”时，直接按业务上下文 `promptVersionId` 查询并展示，线上
+  状态也不阻断查询；回答中说明“当前提示词由页面左侧选定项决定”。不得要求用户另给版本 ID。
 - `writeMode` 一旦锁定，校验结果、`diffRecordId` 和用户确认都不得改变它；两种模式确认后
   都只调用 `tool_edit_prompt_skeleton`：初始化传 `prompt_version_id=0`，修改传锁定的
   `selectedPromptVersionId`。
 - 提案前执行 [shared-steps.md](references/shared-steps.md) 的 S3；确认后写入内容必须与校验内容
   完全一致。修改类只展示服务端 `data.diff_content`，用户要求时才展开全文。
-- 线上版本禁止修改。修改只接受正文非空的草稿或归档版本；查到空正文时停止并报告数据异常，
+- 线上版本禁止原地修改或覆盖，但正文非空时允许作为 `EDIT` 的只读基础，确认后派生新的草稿；
+  不得要求用户另行提供草稿或归档版本 ID。任意状态的基础正文为空时停止并报告数据异常，
   不切换到初始化，因为初始化只允许 `promptVersionId` 缺失或为 0。
 - 初始化校验与确认写入都按 `ruleGroupId` 再次检查是否已有 Prompt；已有时直接把服务端返回的
   Prompt 结果告知用户，不生成提案、不写入。确实不存在时才创建首个草稿；初始化 Diff 的
@@ -68,7 +79,8 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
 - 用户描述 Badcase：[badcase-description-workflow.md](references/badcase-description-workflow.md)
 - 纯查询：不加载 workflow，只调用对应只读 MCP。
 
-目标语义不清时先澄清；不得让用户输入的提示词 ID/名称覆盖业务上下文 `promptVersionId`。
+目标语义不清时先澄清；但 `promptVersionId>0` 时的“优化提示词/优化骨架”已有默认优化目标，
+不属于语义不清。业务上下文 `promptVersionId` 即左侧选定提示词，始终高于用户输入的 ID/名称。
 S2 读取 [rule-loading-policy.md](references/rule-loading-policy.md)。生成全文时按 workflow 读取
 [rule-transformation-guide.md](references/rule-transformation-guide.md)；初始化必须已按上述前置门槛完整读取
 [skeleton-format.md](references/skeleton-format.md)。枚举存疑时读取 [enums.md](references/enums.md)；
