@@ -113,6 +113,10 @@ Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，
 
 写入方式必须在查询基础版本后已经锁定，确认阶段不得重新选择。调用前执行硬校验：
 
+0. 比较提案生成轮记录的 `proposalPromptVersionId` 与确认轮本轮最新 `promptVersionId`；缺失、0、
+   占位符统一按 0 比较。两者不一致时旧提案立即失效，禁止调用写入接口、禁止使用旧
+   `diff_record_id` 或旧 `prompt_content`，提示用户基于当前页面版本重新发起操作。
+
 | `writeMode` | 唯一允许的 MCP | 必传版本字段 |
 |---|---|---|
 | `INITIALIZE` | `tool_edit_prompt_skeleton` | `prompt_version_id=0` |
