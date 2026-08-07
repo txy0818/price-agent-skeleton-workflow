@@ -10,6 +10,11 @@
 该文件是初始化的强制格式规范，不是可选参考。未能完整读取时停止，不得生成正文、调用校验
 工具或展示提案。
 
+[full-skeleton-example.md](full-skeleton-example.md) 仅作为格式与表达风格的补充参考，不是初始化
+必读文件，也不得作为业务数据来源。正常初始化只完整读取已包含完整模板的
+[skeleton-format.md](skeleton-format.md)，无需加载完整示例；仅当本文件模板无法说明某个格式细节
+时才按需查看相关片段。即使查看，也不得复制其中的类目、品牌、材质、阈值、例外或比价规则。
+
 ## 查询与生成
 
 1. 校验 `当前业务上下文.promptVersionId`：大于 0 表示已有提示词，直接说明并停止初始化；
@@ -26,7 +31,12 @@
 4. 按 `[S2]` 的初始化范围加载全部关联类目规则及过滤后的品牌、材质关系。保留所有生效
    比价项；母子品牌、材质分别最多 50 组，并删除跨行业和不确定项。
 5. 确认已完整读取 [skeleton-format.md](skeleton-format.md)，并读取
-   [rule-transformation-guide.md](rule-transformation-guide.md) 后生成完整提示词。
+   [rule-transformation-guide.md](rule-transformation-guide.md) 后生成完整提示词。母子品牌必须逐组
+   使用 `序号. 母品牌→子品牌1|子品牌2` 格式；不得使用 `- **母品牌**：子品牌`、无序列表、
+   Markdown 加粗或中文冒号分隔。序号从 1 连续递增，多个子品牌只用半角竖线 `|` 分隔。
+   生成后逐行复核格式；发现任一条不符合时，先在内部修正全文，再进入 `[S3]`。
+   除业务数据随本轮查询结果变化外，禁止自行改成另一套 Markdown 表达；不得使用
+   `抽取优先级/匹配规则/例外和边界` 四字段模板替代示例中的 `优先级/匹配/具体规则项` 风格。
 6. 使用生成的完整正文执行 `[S3]` 的正式初始化校验：
    `tool_validate_prompt_skeleton(prompt_content=<完整提示词>, operator=<operator>,
    conversation_id=<localConversationId>, base_prompt_version_id=0,

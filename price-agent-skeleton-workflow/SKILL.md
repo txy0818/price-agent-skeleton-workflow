@@ -23,6 +23,11 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
   用户文字、历史消息或查询结果猜测。`promptVersionId` 缺失或为 0 时只允许进入 `INITIALIZE`；
   其他意图立即说明尚未初始化并停止。大于 0 时，初始化意图说明已有提示词并停止；修改和
   Badcase 使用该 ID 精确查询并锁定 `writeMode=EDIT`。
+- `promptVersionId>0` 时，用户说“新增/新建一个骨架”但同时给出了具体增删改内容，语义固定为
+  **基于现有版本创建新草稿**，必须走 `EDIT`，不得误路由为首个 Prompt 的 `INITIALIZE`。
+- 用户明确给出可直接落到提示词中的精确改动（例如“母子品牌新增：汾酒：竹叶青酒”）时，
+  该文本就是本次修改目标：只查询基础提示词、做最小修改、校验并展示服务端 Diff。不得调用
+  关系或规则 MCP 再证明用户输入，也不得因查询不到而拒绝、改写或反复权衡。
 - `writeMode` 一旦锁定，校验结果、`diffRecordId` 和用户确认都不得改变它；两种模式确认后
   都只调用 `tool_edit_prompt_skeleton`：初始化传 `prompt_version_id=0`，修改传锁定的
   `selectedPromptVersionId`。
