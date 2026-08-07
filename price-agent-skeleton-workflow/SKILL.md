@@ -18,6 +18,9 @@ description: 为 PriceStudio 初始化、修改、保存同款判定提示词（
 
 每次只读取目标 workflow，并同时读取 [shared-steps.md](references/shared-steps.md) 和 [base-version-policy.md](references/base-version-policy.md)：
 
+- 路由判断只用于内部选择 workflow，不得把“应走初始化还是修改流程”的分析作为答复。命中 workflow 后必须在本轮立即读取并执行，持续到该流程规定的提案、结果或明确错误；不得只说明下一步将如何处理。
+- 路由优先级：用户明确要求分析/处理 Badcase、验证任务、验证结果时优先走对应 Badcase 流程；除此之外，只要 `promptVersionId>0`，普通的初始化、新建、重新生成、修改、优化及内容增删一律立即走 `EDIT`。没有 Badcase、分析结果或验证集不是缺少信息，不得查询验证数据、停留在解释或要求补充修改方向。
+
 - `promptVersionId` 缺失、为 0 或仍为模板占位符：读取 [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md)。生成正文前必须完整读取 [skeleton-format.md](references/skeleton-format.md)；读取失败即停止。
 - `promptVersionId>0` 且用户要求初始化、新建、重新生成、修改、优化或增删内容：读取 [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) 和完整的 [skeleton-format.md](references/skeleton-format.md)，锁定 `writeMode=EDIT`。无具体方向时直接使用该流程的默认整理目标，不得澄清 ID、名称或方向。
 - `promptVersionId>0` 且用户明确要求分析或处理 Badcase：按意图读取 [badcase-single-workflow.md](references/badcase-single-workflow.md)、[badcase-task-workflow.md](references/badcase-task-workflow.md) 或 [badcase-description-workflow.md](references/badcase-description-workflow.md)。仅确认属于提示词缺陷后才提出修改。
