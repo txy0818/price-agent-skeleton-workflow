@@ -8,7 +8,7 @@
 
 ## 回复前执行门禁
 
-本节是必须实际完成的顺序，不是计划、建议或说明。除工具返回明确错误或查到已有提示词外，完成全部门禁前禁止输出任何用户可见答复：
+本节是必须在第一条用户可见答复前实际完成的顺序，不是计划、建议或说明。除工具返回明确错误或查到已有提示词外，完成全部门禁前禁止输出任何用户可见答复：
 
 1. 完整读取 [shared-steps.md](shared-steps.md)、[base-version-policy.md](base-version-policy.md)、[skeleton-format.md](skeleton-format.md)、[rule-loading-policy.md](rule-loading-policy.md) 和 [rule-transformation-guide.md](rule-transformation-guide.md)。
 2. 确认业务上下文 `promptVersionId` 确实缺失、为 0 或为占位符；只要大于 0 就立即退出本流程并改走 EDIT，禁止继续初始化。
@@ -16,7 +16,7 @@
 4. 在内存中生成并自检完整候选正文，随后实际执行 `[S3]`；`valid=false` 时按 errors 修正并在允许次数内重试。
 5. 仅在 `prompt_exists=false` 且 `valid=true` 后，当轮输出完整初始化提案；用户确认只用于后续写入。
 
-禁止把“已加载初始化流程 / 下一步将查询 / 等你回复继续生成”作为正常结果。
+初始化请求本身已经授权执行查询、候选正文生成和校验，不需要用户再次确认开始。禁止输出路由说明、步骤清单、进度或异步承诺，包括“已进入/加载初始化流程”“接下来会查询”“正在生成/校验”“生成完成后再给你”“等你回复继续生成”。首条正常答复必须直接是完整初始化提案；只有提案展示后的实际写入需要确认。
 
 ## 查询与生成
 
