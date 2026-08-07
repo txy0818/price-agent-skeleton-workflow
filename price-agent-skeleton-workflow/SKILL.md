@@ -1,6 +1,6 @@
 ---
 name: price-agent-skeleton-workflow
-description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查询、修改、编辑、调整、优化、完善、补全、增删、保存或发布，以及验证任务和 Badcase 分析。出现上述 PriceStudio 操作或无具体方向的写操作词时使用；问候、能力介绍、碎片输入和范围外请求不使用。
+description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查询、修改、编辑、调整、优化、完善、补全、增删、保存或发布，以及验证任务和 Badcase 分析；也处理对上一轮提示词提案的“确认、同意、保存、创建草稿、拒绝、取消”。出现上述 PriceStudio 操作或无具体方向的写操作词时使用；问候、能力介绍、碎片输入和范围外请求不使用。
 ---
 
 # PriceStudio 提示词工作流
@@ -25,9 +25,25 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 | 验证任务或批量 Badcase | [badcase-task-workflow.md](references/badcase-task-workflow.md) |
 | 用户文字描述的 Badcase | [badcase-description-workflow.md](references/badcase-description-workflow.md) |
 | 仅查询当前提示词 | [base-version-policy.md](references/base-version-policy.md)，按上下文 ID 精确只读查询 |
+| 紧邻上一轮已展示提案后的确认、同意、保存或创建草稿 | 恢复该提案所属 workflow，只执行 [shared-steps.md](references/shared-steps.md) 的 `[S5]` |
 | 提示词写操作且 `promptVersionId>0` | [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) |
 | 提示词写操作且 `promptVersionId` 缺失、为 0 或占位符 | [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md) |
 
 “新建、创建、初始化、生成、修改、编辑、调整、优化、完善、补全、新增、添加、删除、移除、替换、改写”等均是完整写操作，即使没有具体方向也立即选路，禁止追问方向或索取 Badcase。写操作只按 `promptVersionId` 选路：`promptVersionId=82` 时“初始化提示词”仍走 `EDIT`；`promptVersionId=0` 时“修改提示词”仍走 `INITIALIZE`。
 
 一旦识别为写操作，禁止再做意图澄清或询问是否开始；`promptVersionId` 是选择 `EDIT/INITIALIZE` 的唯一条件。选定后只执行该 workflow，不在 `SKILL.md` 中补充、改序或重解释流程。完整读取其直接要求的共享文件和格式规范，并执行到 workflow 规定的提案、分析/查询结果或明确错误；在形成合规提案前不得向用户提问，也不得只回复路由、计划、校验中间结果或进度。
+
+## 提案前强制校验门禁
+
+凡是会产生提示词提案的 `INITIALIZE`、`EDIT` 或 Badcase 修复，都必须在本轮第一条用户可见答复前依次完成：
+
+1. 按目标 workflow 读取全部必需文件并生成完整候选 `prompt_content`；
+2. **实际调用** `tool_validate_prompt_skeleton`，提交该完整候选正文和目标 workflow 要求的上下文参数；
+3. 取得本次工具调用真实返回的 `data.valid`、`data.diff_record_id` 和 `data.diff_content`；
+4. `data.valid=false` 时按 errors 在本轮内部自动修正并按 `[S3]` 重试；只有 `data.valid=true` 才允许展示提案。
+
+以下行为一律禁止：用模型自检代替工具调用；在没有真实工具返回时声称“已生成并校验”；展示未经校验的完整正文；先展示草稿再等待用户同意校验或补全；伪造、预估或用占位符表示 `diff_record_id`、`diff_content`。没有实际校验调用记录或未取得 `data.valid=true` 时，只能返回明确错误，不能输出提案和确认话术。
+
+`INITIALIZE` 还必须满足：`base_prompt_version_id=0`，先完成规则组查重，再生成完整正文并调用上述校验；校验成功后记录真实 `data.diff_record_id`（允许为 0）及同次已校验完整正文，供确认后的 `[S5]` 二选一写入。
+
+紧邻上一轮已经展示提案时，“确认”“同意”“保存”“创建草稿”均表示确认该唯一提案；不得要求用户复述固定确认句。确认后按 `[S5]` 使用同次 S3 结果：有非零 `diff_record_id` 时传 ID，否则传 S3 已校验通过的完整 `prompt_content`。
