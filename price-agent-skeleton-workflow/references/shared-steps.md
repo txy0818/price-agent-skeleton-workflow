@@ -57,12 +57,12 @@ rule_group_id=当前业务上下文.ruleGroupId, agent_id=当前业务上下文.
 
 Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，**不自行书写 Diff**。
 
-- `resp_code=1` 且 `data.valid=true` → 展示提案。
+- `resp_code=1`、`data.valid=true` 且 `data.diff_record_id>0` → 展示提案。
 - `data.valid=false` → 在本轮内部按 `data.errors` 自动修正后重新校验，最多重试 2 次。重试期间不得展示中间错误，不得询问用户是否同意补全、修复或继续。
-- 自动重试后仍未通过或调用失败 → 直接返回最终校验错误，不展示提案、不调用写入 MCP，也不得请求用户授权后再生成或修复。
+- `data.valid=true` 但 `data.diff_record_id<=0`，或自动重试后仍未通过、调用失败 → 直接返回最终错误，不展示提案、不调用写入 MCP，也不得请求用户授权后再生成或修复。
 
 `data.valid=false` 时返回的 `data.diff_record_id=0` 或空 `data.diff_content` 只是“尚未形成有效
-提案”的伴随结果，不是停止生成候选正文的理由，也不得向用户表述为“服务端未提供修改方案”。
+提案”的伴随结果，不是停止自动修正候选正文的理由，也不得向用户表述为“服务端未提供修改方案”。
 服务端只负责校验候选正文并计算 Diff；候选完整正文必须由本流程在校验前生成。
 
 校验是提案的前置工具操作，不是待用户确认的计划。修改类请求中，本轮必须先完成调用并取得
@@ -77,11 +77,8 @@ Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，
 
 ### 记录修改建议 ID 与 Diff
 
-`data.valid=true` 时记录同次 S3 的 `data.diff_record_id` 和已校验完整正文，供 `[S5]` 二选一：
-
-- `data.diff_record_id>0`：内容已在服务端落库，写入时只传 ID。
-- `data.diff_record_id` 缺失或为 0：仍可展示提案；确认后传同次 S3 已校验通过的完整
-  `prompt_content`。不得传空值、基础原文、重新生成内容或与 S3 不一致的内容。
+`data.valid=true` 时必须同时取得 `data.diff_record_id>0`，表示校验正文、基础版本和规则组已作为
+待决策提案绑定并落库。缺失或为 0 时不构成可确认提案，禁止进入 `[S4]`、`[S5]`。
 
 同时记住 `data.diff_content`：这是服务端比对基础版本算出的差异正文，`[S4]` 展示 Diff 时
 只能原样引用它，不得自行重写、改写或裁剪。
@@ -96,13 +93,13 @@ Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，
 - **修改类流程**（含 Badcase 修复）：只展示 Diff，不展开提示词全文。Diff 正文原样取
   `[S3]` 返回的 `data.diff_content`，套上 `diff` 语言标记的代码围栏输出；内容为空或提示
   无差异时如实说明，不自造 Diff。同时展示同一次 S3 返回的
-  `data.diff_record_id`（用户可见名称统一写“修改建议 ID（diff_id）”；缺失时写 0）。禁止在 Diff 前后附加完整提示词或以
+  非零 `data.diff_record_id`（用户可见名称统一写“修改建议 ID（diff_id）”）。禁止在 Diff 前后附加完整提示词或以
   「第 1/N 段」方式分段输出全文。
   提案中必须同时写明：`当前提示词由页面左侧选定的提示词决定（以当前业务上下文 promptVersionId 为准）`。
 - **初始化首个 Prompt**：没有有效正文基线，展示完整提示词。
   全文必须作为一块内容放在同一个四反引号 `text` 围栏中，禁止拆块或把部分内容输出到围栏外；
-  全文内部的三反引号代码围栏原样保留。同时展示同次 S3 返回的 `data.diff_record_id`，
-  用户可见名称统一写“修改建议 ID（diff_id）”；缺失时写 0。
+  全文内部的三反引号代码围栏原样保留。同时展示同次 S3 返回的非零 `data.diff_record_id`，
+  用户可见名称统一写“修改建议 ID（diff_id）”。
 
 结构完整性由 S3 保证。
 提案须标注「尚未保存」，并以确认话术结尾。
@@ -113,10 +110,6 @@ Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，
 
 写入方式必须在查询基础版本后已经锁定，确认阶段不得重新选择。调用前执行硬校验：
 
-0. 比较提案生成轮记录的 `proposalPromptVersionId` 与确认轮本轮最新 `promptVersionId`；缺失、0、
-   占位符统一按 0 比较。两者不一致时旧提案立即失效，禁止调用写入接口、禁止使用旧
-   `diff_record_id` 或旧 `prompt_content`，提示用户基于当前页面版本重新发起操作。
-
 | `writeMode` | 唯一允许的 MCP | 必传版本字段 |
 |---|---|---|
 | `INITIALIZE` | `tool_edit_prompt_skeleton` | `prompt_version_id=0` |
@@ -124,29 +117,21 @@ Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，
 
 版本字段缺失、不符合 `writeMode` 或调用了其他写入 MCP 时，禁止调用写入接口。
 
-**初始化、修改和 Badcase 修复写入**：都只调用一次 `tool_edit_prompt_skeleton`，按同次 `[S3]`
-结果二选一，禁止混传：
-
-**路径一：`diff_record_id>0`** —— 内容已在服务端，只传 ID：
+**初始化、修改和 Badcase 修复写入**：都只调用一次 `tool_edit_prompt_skeleton`，只传同次 `[S3]`
+返回的非零 Diff ID：
 `tool_edit_prompt_skeleton(rule_group_id=当前业务上下文.ruleGroupId, prompt_version_id=<INITIALIZE传0；EDIT传selectedPromptVersionId>, operator=当前业务上下文.operator, source_type=<INITIALIZE 传3；EDIT传2>, prompt_diff_record_id=<S3 返回的 diff_record_id>)`。
 
 不传 `prompt_content`：服务端一律以库中记录为准，传了也会被忽略。
 
-**路径二：`diff_record_id` 缺失或为 0** —— 传同次 S3 已校验的完整内容：
-`tool_edit_prompt_skeleton(rule_group_id=当前业务上下文.ruleGroupId, prompt_version_id=<INITIALIZE传0；EDIT传selectedPromptVersionId>, prompt_content=<S3 已校验的完整内容>, operator=当前业务上下文.operator, source_type=<INITIALIZE传3；EDIT传2>, conversation_id=当前业务上下文.localConversationId)`。
-
-调用前必须确认 `prompt_content` 非空且与 S3 提交内容完全一致；无法取得时停止并明确说明状态
-丢失，不得调用写入接口，不得重新生成或拿页面原文替代。
-
 初始化确认时服务端再次按规则组查重：已有就直接返回现有 Prompt，没有才创建首个草稿；初始化
-Diff 的基础版本 ID 为 0、新版本 ID 为空。修改仍基于锁定版本派生新草稿。两条路径都把工具实际返回的 ID、
+Diff 的基础版本 ID 为 0、新版本 ID 为空。修改仍基于锁定版本派生新草稿。写入后把工具实际返回的 ID、
 名称和版本关系告知用户；后续修改和验证使用该 ID。
 
 初始化写入响应 `data.prompt_exists=true` 表示确认时已经存在 Prompt：明确告知用户本次未新建，
 直接展示返回的 `new_prompt_version_id`、`new_prompt_name`、`version_no`。
 
-返回“该修改建议已处理或已失效”时，说明该建议已被其他路径写入，**不得重试、不得改走兜底
-路径**，否则会重复创建草稿；改为向用户说明并请其刷新查看。
+返回“该修改建议已处理或已失效”时，说明该建议已被其他路径写入，**不得重试或改传正文**，
+否则会重复创建草稿；改为向用户说明并请其刷新查看。
 
 调用超时或返回不完整时，可调用 `query_agent_detail` 取得
 `data.latest_draft_prompt_version_id` 做只读结果核实，再按该 ID

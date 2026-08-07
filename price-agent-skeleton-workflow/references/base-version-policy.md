@@ -7,9 +7,6 @@
 本策略只约束 Prompt 版本 ID，不覆盖提案的 `diff_record_id`。用户确认上一轮提案时，
 `diff_record_id` 仍取该提案同次 S3 返回值，并按 `[S5]` 使用。
 
-提案生成时记录该轮归一化后的 `proposalPromptVersionId`：缺失、0 或模板占位符统一为 0，
-大于 0 时记录精确 ID。确认提案时，本轮最新 `promptVersionId` 必须与其完全一致；否则旧提案
-失效，禁止继续原 `EDIT/INITIALIZE` 或使用旧提案内容。普通新请求只按本轮值路由。
 
 ## 路由与校验
 
