@@ -1,6 +1,6 @@
 ---
 name: price-agent-skeleton-workflow
-description: 为 PriceStudio 初始化、修改、保存同款判定提示词（骨架），或分析验证任务、单条及用户描述的 Badcase。用户要求操作“提示词”“骨架”或分析 Badcase 时使用；写入前必须展示提案并取得明确确认。
+description: 为 PriceStudio 新建、创建、初始化、重新生成、修改、优化、增删、保存或发布同款判定提示词（骨架），或分析验证任务、单条及用户描述的 Badcase。用户说“新建提示词”“创建提示词”“初始化提示词”、要求操作提示词/骨架或分析 Badcase 时使用；写入前必须展示提案并取得明确确认。
 ---
 
 # PriceStudio 提示词工作流
@@ -16,23 +16,22 @@ description: 为 PriceStudio 初始化、修改、保存同款判定提示词（
 
 ## 路由
 
-每次只读取目标 workflow，并同时读取 [shared-steps.md](references/shared-steps.md) 和 [base-version-policy.md](references/base-version-policy.md)：
+每次只读取目标 workflow，并同时读取 [shared-steps.md](references/shared-steps.md) 和 [base-version-policy.md](references/base-version-policy.md)。先判断操作类型，再对提示词写操作按 `promptVersionId` 二选一：
 
-| 优先级 | 条件 | 唯一路径 |
-|---|---|---|
-| 1 | 明确分析/处理 Badcase | 按输入选择 [badcase-single-workflow.md](references/badcase-single-workflow.md)、[badcase-task-workflow.md](references/badcase-task-workflow.md) 或 [badcase-description-workflow.md](references/badcase-description-workflow.md) |
-| 2 | 普通提示词操作且 `promptVersionId>0` | 读取 [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) 和完整 [skeleton-format.md](references/skeleton-format.md)，锁定 `writeMode=EDIT` |
-| 3 | 普通提示词操作且 `promptVersionId` 缺失、为 0 或为占位符 | 读取 [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md) 和完整 [skeleton-format.md](references/skeleton-format.md) |
-| 4 | 仅查询当前提示词 | 不加载 workflow；使用上下文 ID 精确查询，固定 `version_name=""` |
+| 操作类型或状态 | 唯一路径 |
+|---|---|
+| 明确分析/处理 Badcase | 按输入选择 [badcase-single-workflow.md](references/badcase-single-workflow.md)、[badcase-task-workflow.md](references/badcase-task-workflow.md) 或 [badcase-description-workflow.md](references/badcase-description-workflow.md) |
+| 仅查询当前提示词 | 不加载 workflow；使用上下文 ID 精确查询，固定 `version_name=""` |
+| 任意提示词写操作，且 `promptVersionId>0` | 读取 [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) 和完整 [skeleton-format.md](references/skeleton-format.md)，锁定 `writeMode=EDIT` |
+| 任意提示词写操作，且 `promptVersionId` 缺失、为 0 或为占位符 | 读取 [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md) 和完整 [skeleton-format.md](references/skeleton-format.md)，锁定 `writeMode=INITIALIZE` |
 
-`promptVersionId` 数值条件高于“初始化、新建、重新生成”等用户措辞；`promptVersionId>0` 时“新建”表示派生新草稿。没有 Badcase 或验证数据不是信息缺失。路由仅用于内部选路，不向用户解释。
+“提示词写操作”包括但不限于新建、创建、初始化、重新生成、修改、优化、调整、增删和按照规则生成。具体动词不参与 INITIALIZE/EDIT 决策；即使措辞与数值状态表面矛盾，也只以 `promptVersionId` 为准，不澄清、不拒答、不要求用户换一种说法。例如：`promptVersionId=82` 时用户说“初始化提示词”仍走 `EDIT`；`promptVersionId=0` 时用户说“修改当前提示词”仍走 `INITIALIZE`。用户措辞不得覆盖业务上下文中的版本状态。没有 Badcase 或验证数据不是信息缺失。路由仅用于内部选路，不向用户解释。
 
 ## 本轮完成契约
 
 - 命中 workflow 后立即完整读取其要求的依赖，并实际执行到该流程规定的提案、分析结果、查询结果或明确错误。
 - 禁止用“已加载流程”“下一步将查询/生成”“等你回复继续”代替执行。用户确认只发生在提案已经展示之后。
-- 候选提示词由 Skill 基于格式规范和可信 MCP 数据生成；服务端校验并计算 Diff。禁止等待服务端先提供 Diff 才生成候选正文。
-- `valid=false` 按 errors 修正并重试；`valid=true` 后按 `[S4]` 展示。`diff_record_id=0` 不影响提案，确认后按 `[S5]` 兜底。
+- 候选提示词生成、校验、Diff、提案和写入必须按 [shared-steps.md](references/shared-steps.md) 的 `[S3]`～`[S5]` 连续执行，不得自行改序或增加停止条件。
 
 ## 修改与写入边界
 

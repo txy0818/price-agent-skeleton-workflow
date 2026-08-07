@@ -1,6 +1,6 @@
 # 初始化提示词
 
-仅当 `promptVersionId` 缺失、为 0 或仍为模板占位符时进入；初始化没有基础版本。共享步骤见 [shared-steps.md](shared-steps.md)。
+对任意提示词写操作，只要 `promptVersionId` 缺失、为 0 或仍为模板占位符就进入本流程；用户具体使用新建、创建、初始化、重新生成、修改、优化、调整、增删或按照规则生成等哪一种说法都不影响路由。初始化没有基础版本。共享步骤见 [shared-steps.md](shared-steps.md)。
 
 ## 必读门槛
 
@@ -27,7 +27,7 @@
    - 返回非空 `data.prompt_version`：告知其 `version_name` 和 `prompt_version_id` 后停止，不加载规则、不生成或写入。
    - 明确不存在：继续。
    - 调用失败：按只读规则重试一次，仍失败则停止。
-4. 按 `[S2]` 加载全部关联类目规则及过滤后的品牌、材质关系，保留全部生效比价项；母子品牌和材质各不超过 50 组，删除跨行业及不确定项。
+4. 按 `[S2]` 加载全部关联类目规则及过滤后的品牌、材质关系，保留全部生效比价项；母子品牌最多 100 组、材质最多 50 组，优先删除低相关、不常见、跨行业及不确定项。
 5. 读取 [rule-transformation-guide.md](rule-transformation-guide.md)，严格按 `skeleton-format.md` 生成并自检完整正文，不得改用其他结构或把示例当业务事实。
 6. 用完整正文执行 `[S3]`，其中 `base_prompt_version_id=0`。若 `data.prompt_exists=true`，返回 `existing_prompt_name` 和 `existing_prompt_version_id` 后停止；仅 `prompt_exists=false` 且 `valid=true` 时展示提案。初始化 Diff 的 `new_prompt_version_id` 留空。
 
