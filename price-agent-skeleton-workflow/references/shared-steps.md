@@ -38,6 +38,9 @@
    `confidence`、缺失值、三种`source`、布尔`match`、多来源`+`拼接、多部位材质格式、
    `key_diff_point`常驻。只出现标题或其中部分规则仍视为未完成，禁止调用
    `tool_validate_prompt_skeleton`。
+4. 对本轮新增、删除或调序影响的业务编号序列执行整体重编号：比价项三级标题和母子品牌条目
+   必须从 1 连续递增、无缺号和重复号；母子品牌标题组数必须等于最终实际条目数。编号未归一化
+   时禁止调用 `tool_validate_prompt_skeleton`。
 
 生成完整提示词后，展示提案前调用
 `tool_validate_prompt_skeleton(prompt_content=<生成的完整提示词>, operator=当前业务上下文.operator,
