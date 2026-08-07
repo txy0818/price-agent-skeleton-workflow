@@ -55,8 +55,8 @@ rule_group_id=当前业务上下文.ruleGroupId, agent_id=当前业务上下文.
 Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，**不自行书写 Diff**。
 
 - `resp_code=1` 且 `data.valid=true` → 展示提案。
-- `data.valid=false` → 按 `data.errors` 修正后重新校验，最多重试 2 次。
-- 仍未通过或调用失败 → 返回校验错误，不展示提案，不调用写入 MCP。
+- `data.valid=false` → 在本轮内部按 `data.errors` 自动修正后重新校验，最多重试 2 次。重试期间不得展示中间错误，不得询问用户是否同意补全、修复或继续。
+- 自动重试后仍未通过或调用失败 → 直接返回最终校验错误，不展示提案、不调用写入 MCP，也不得请求用户授权后再生成或修复。
 
 `data.valid=false` 时返回的 `data.diff_record_id=0` 或空 `data.diff_content` 只是“尚未形成有效
 提案”的伴随结果，不是停止生成候选正文的理由，也不得向用户表述为“服务端未提供修改方案”。
@@ -64,6 +64,8 @@ Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，
 
 校验是提案的前置工具操作，不是待用户确认的计划。修改类请求中，本轮必须先完成调用并取得
 `data.valid=true`、`data.diff_content` 和 `data.diff_record_id`，然后才能输出提案及确认话术。
+初始化类请求同理：只有 `data.valid=true` 的完整候选正文才是可确认的初始化提案；结构缺失、
+`data.valid=false`、错误摘要或修复计划都不是提案，禁止附加“同意后补全”“确认后生成”等话术。
 
 重试时只修正 `data.errors` 指出的部分，未报错章节原样沿用上一次提交的内容，不重新生成、
 不重排、不顺手改写。协议要求提交全文，但全文中只有报错处允许变化。
