@@ -61,4 +61,5 @@ Badcase 分析流程固定使用 `label_filter=3`。
 | false | 按 `prompt_version_id` 或 `version_name` 精确查询 |
 | true | 查询当前线上版本，忽略 ID 与名称 |
 
-本 Skill 的初始化和修改流程固定传 `false`，禁止以线上版本为基础。
+本 Skill 的初始化和修改流程固定传 `false`。这只表示不使用“自动查询当前线上版本”的模式；
+当业务上下文 `promptVersionId` 精确指向线上版本时，仍可按 ID 查询并将其作为只读基础派生新草稿。

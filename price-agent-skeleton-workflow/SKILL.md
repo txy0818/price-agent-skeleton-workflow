@@ -5,6 +5,22 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
 
 # PriceStudio 提示词工作流
 
+## 路由前置判定（最高优先级）
+
+在检查“信息是否充分”、决定是否澄清或读取其他规则之前，必须先执行以下判定；命中后禁止再用
+任何通用缺失信息规则推翻：
+
+- 当前业务上下文 `promptVersionId>0` 且用户只说“优化/修改/调整/整理/重新生成/初始化/新建
+  提示词（或骨架）”等普通骨架操作、未给具体方向时，立即读取
+  [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md)、
+  [skeleton-format.md](references/skeleton-format.md)、[shared-steps.md](references/shared-steps.md) 和
+  [base-version-policy.md](references/base-version-policy.md)，并在本轮直接调用
+  `tool_query_prompt_skeleton` 精确查询该版本。
+- 此请求的信息已经充分。严禁回复“未指定提示词名称/ID”“请提供提示词 ID 或名称”“请说明修改
+  或优化方向”“无法继续”或任何同义话术；具体方向缺失时使用修改 workflow 中的默认整理目标。
+- 用户消息里是否出现提示词 ID、名称或方向，不影响上述判定，也不得用历史消息中的候选版本
+  替代当前业务上下文 `promptVersionId`。
+
 ## 硬约束
 
 - `agentId` 非零、`operator` 非空；MCP schema 有 `operator` 时原样传入。缺失即停止。
@@ -13,7 +29,8 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
   未读取成功时停止，不得进入生成、校验或提案。
 - `ruleGroupId` 使用当前业务上下文；缺失时仅可从本轮 `query_agent_detail.data.card.rule_group_id`
   取得，之后固定，不被其他返回覆盖。
-- 不猜 ID、规则或样本；流程必需的可选 ID 缺失时要求用户本轮补充。
+- 不猜业务 ID、规则或样本；本约束不得用于索取提示词 ID/名称。提示词版本只使用当前业务上下文
+  `promptVersionId`；无方向的普通骨架操作使用默认目标，不属于关键数据缺失。
 - 只读 MCP 的临时错误重试一次；业务错误不重试。写入失败或超时绝不重试写入，只读核实；
   无法唯一确认内容一致时报告结果未知。
 
@@ -36,8 +53,9 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
 - `EDIT` 生成完整正文时，[skeleton-format.md](references/skeleton-format.md) 的结构与格式约束
   优先级高于基础 `prompt_content` 的既有写法。基础正文格式不合理时必须一并修复到符合规范；
   对不冲突的业务规则、映射和用户本轮明确修改予以保留，不得借格式修复擅自改变业务含义。
-- `promptVersionId>0` 且用户只说“优化提示词/优化骨架”时，已经满足进入修改流程的条件，不得
-  再询问提示词 ID、名称或优化方向。未给方向时默认优化：按 `skeleton-format.md` 修复格式，
+- `promptVersionId>0` 且用户只说“优化/修改/调整/整理/重新生成/初始化/新建提示词（或骨架）”
+  等普通骨架操作时，已经满足进入修改流程的条件，不得再询问提示词 ID、名称或具体方向。
+  未给方向时默认整理：按 `skeleton-format.md` 修复格式，
   消除歧义、重复和前后矛盾，统一术语、Step、比价项和 JSON 输出约束，并根据本轮可信规则
   检查确有依据的遗漏；不得凭空新增业务规则、阈值或映射。
 - 用户明确给出可直接落到提示词中的精确改动（例如“母子品牌新增：汾酒：竹叶青酒”）时，
@@ -79,7 +97,7 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
 - 用户描述 Badcase：[badcase-description-workflow.md](references/badcase-description-workflow.md)
 - 纯查询：不加载 workflow，只调用对应只读 MCP。
 
-目标语义不清时先澄清；但 `promptVersionId>0` 时的“优化提示词/优化骨架”已有默认优化目标，
+目标语义不清时先澄清；但 `promptVersionId>0` 时无具体方向的普通骨架操作已有默认整理目标，
 不属于语义不清。业务上下文 `promptVersionId` 即左侧选定提示词，始终高于用户输入的 ID/名称。
 S2 读取 [rule-loading-policy.md](references/rule-loading-policy.md)。生成全文时按 workflow 读取
 [rule-transformation-guide.md](references/rule-transformation-guide.md)；初始化必须已按上述前置门槛完整读取

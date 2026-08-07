@@ -23,8 +23,8 @@
 - `version_status=1/3` 且 `prompt_content` 非空 → 骨架已初始化：
   - 普通的新建、初始化、优化、重新生成或修改骨架诉求，统一进入 `edit-skeleton`，不得因用户使用
     “初始化/新建”等措辞而停止；
-  - 只说“优化提示词/优化骨架”且未给具体方向时，使用 `edit-skeleton` 的默认优化目标继续，
-    不得追问提示词 ID、名称或优化方向；
+  - 只说“优化/修改/调整/整理/重新生成/初始化/新建提示词（或骨架）”等普通骨架操作且未给
+    具体方向时，使用 `edit-skeleton` 的默认整理目标继续，不得追问提示词 ID、名称或具体方向；
   - 用户明确要求分析或处理 Badcase 时，进入对应的 Badcase workflow，不进入 `edit-skeleton`；
   - Badcase workflow 分析后若确认属于 Prompt 缺陷，再按照该 workflow 的后续步骤提出骨架
     修改建议。
