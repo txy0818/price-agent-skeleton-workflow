@@ -15,8 +15,12 @@
 
 - `version_status=2`（线上）→ 停止并提示用户改选草稿或归档版本；
 - `version_status=1/3` 且 `prompt_content` 为空 → 停止并报告版本正文为空的数据异常；不得进入初始化；
-- `version_status=1/3` 且 `prompt_content` 非空 → 已初始化；普通修改进入 `edit-skeleton`，
-  Badcase 进入对应 workflow。用户只要求初始化时，直接说明已初始化，不自动修改；
+- `version_status=1/3` 且 `prompt_content` 非空 → 骨架已初始化：
+  - 普通的新建、初始化、重新生成或修改骨架诉求，统一进入 `edit-skeleton`，不得因用户使用
+    “初始化/新建”等措辞而停止；
+  - 用户明确要求分析或处理 Badcase 时，进入对应的 Badcase workflow，不进入 `edit-skeleton`；
+  - Badcase workflow 分析后若确认属于 Prompt 缺陷，再按照该 workflow 的后续步骤提出骨架
+    修改建议。
 - Badcase 的 `prompt_content` 为空 → 停止并要求先初始化，不得生成分析结论或修改提案。
 
 `prompt_content` 的空判断以 `null`、空串或仅空白字符为准。不得仅凭 `version_no`、

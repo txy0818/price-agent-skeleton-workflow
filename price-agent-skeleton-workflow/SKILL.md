@@ -21,10 +21,17 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
 
 - 提示词版本只取当前业务上下文的 `promptVersionId`，不再要求用户提供 ID 或名称，也不得从
   用户文字、历史消息或查询结果猜测。`promptVersionId` 缺失或为 0 时只允许进入 `INITIALIZE`；
-  其他意图立即说明尚未初始化并停止。大于 0 时，初始化意图说明已有提示词并停止；修改和
-  Badcase 使用该 ID 精确查询并锁定 `writeMode=EDIT`。
-- `promptVersionId>0` 时，用户说“新增/新建一个骨架”但同时给出了具体增删改内容，语义固定为
-  **基于现有版本创建新草稿**，必须走 `EDIT`，不得误路由为首个 Prompt 的 `INITIALIZE`。
+  其他意图立即说明尚未初始化并停止。`promptVersionId>0` 时，只要用户要求“初始化骨架”、
+  “新建骨架”、“重新生成骨架”或“修改骨架”，一律进入
+  [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md)，使用该 ID 精确查询并锁定
+  `writeMode=EDIT`；不得因“初始化/新建”字样停止或改走 `INITIALIZE`。确认后仍基于该版本
+  创建一个新的骨架草稿，不覆盖原版本。
+- 上一条只适用于普通骨架操作。用户明确要求分析或处理 Badcase 时，必须进入对应 Badcase
+  workflow；只有分析确认属于 Prompt 缺陷后，才按该 workflow 的后续步骤提出修改建议，不能
+  直接改走普通 `edit-skeleton`。
+- `EDIT` 生成完整正文时，[skeleton-format.md](references/skeleton-format.md) 的结构与格式约束
+  优先级高于基础 `prompt_content` 的既有写法。基础正文格式不合理时必须一并修复到符合规范；
+  对不冲突的业务规则、映射和用户本轮明确修改予以保留，不得借格式修复擅自改变业务含义。
 - 用户明确给出可直接落到提示词中的精确改动（例如“母子品牌新增：汾酒：竹叶青酒”）时，
   该文本就是本次修改目标：只查询基础提示词、做最小修改、校验并展示服务端 Diff。不得调用
   关系或规则 MCP 再证明用户输入，也不得因查询不到而拒绝、改写或反复权衡。
@@ -54,7 +61,8 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
 - 初始化：必须同时完整读取
   [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md) 和
   [skeleton-format.md](references/skeleton-format.md)；后者是生成前置必读，不是按需参考。
-- 修改：[edit-skeleton-workflow.md](references/edit-skeleton-workflow.md)
+- 修改：必须同时完整读取 [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) 和
+  [skeleton-format.md](references/skeleton-format.md)；格式规范在修改中同样是强制约束。
 - 单条 Badcase：[badcase-single-workflow.md](references/badcase-single-workflow.md)
 - 整次任务 Badcase：[badcase-task-workflow.md](references/badcase-task-workflow.md)
 - 用户描述 Badcase：[badcase-description-workflow.md](references/badcase-description-workflow.md)
