@@ -20,6 +20,11 @@
 这里的「生成完整提示词」是工具调用和后续写入所需的内部步骤，不代表允许在提案中输出全文。
 修改类流程必须继续执行 S4 的展示边界；S3 产生的全文不得直接进入用户可见回复。
 
+必须先依据目标 workflow、完整的 `skeleton-format.md` 以及已加载的可信规则生成候选完整提示词，
+再把这份候选内容传给校验接口。禁止直接把基础版本原文当作候选内容提交校验，除非该原文已经
+完整合规且本轮确实不需要任何修改。基础正文仅为 `111`、残缺片段或缺少固定章节时，必须先
+重构为完整骨架；不得先校验原文，再以原文校验失败为由要求用户、系统侧或产品同学补骨架。
+
 生成完整提示词后，展示提案前调用
 `tool_validate_prompt_skeleton(prompt_content=<生成的完整提示词>, operator=当前业务上下文.operator,
 conversation_id=当前业务上下文.localConversationId,
@@ -38,6 +43,10 @@ Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，
 - `resp_code=1` 且 `data.valid=true` → 展示提案。
 - `data.valid=false` → 按 `data.errors` 修正后重新校验，最多重试 2 次。
 - 仍未通过或调用失败 → 返回校验错误，不展示提案，不调用写入 MCP。
+
+`data.valid=false` 时返回的 `data.diff_record_id=0` 或空 `data.diff_content` 只是“尚未形成有效
+提案”的伴随结果，不是停止生成候选正文的理由，也不得向用户表述为“服务端未提供修改方案”。
+服务端只负责校验候选正文并计算 Diff；候选完整正文必须由本流程在校验前生成。
 
 校验是提案的前置工具操作，不是待用户确认的计划。修改类请求中，本轮必须先完成调用并取得
 `data.valid=true`、`data.diff_content` 和 `data.diff_record_id`，然后才能输出提案及确认话术。

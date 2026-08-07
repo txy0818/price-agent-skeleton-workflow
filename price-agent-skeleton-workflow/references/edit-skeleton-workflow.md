@@ -18,12 +18,12 @@
 
 1. 仅当业务上下文缺少 `ruleGroupId` 时执行 `[S1]`；已有则跳过。
 2. 按 [base-version-policy.md](base-version-policy.md) 查询基础版本；记录 `selectedPromptVersionId=data.prompt_version.prompt_version_id>0` 并锁定 `writeMode=EDIT`。
-3. 按 [skeleton-format.md](skeleton-format.md) 完整审计基础正文；任一要求不符均标记为“需要格式修复”并在本次修复。
+3. 按 [skeleton-format.md](skeleton-format.md) 完整审计基础正文；任一要求不符均标记为“需要格式修复”并在本次修复。基础正文即使只有 `111` 或其他残缺内容，也只是需要重构的基础版本，不得把原文直接提交 `[S3]` 后因校验失败而停止。
 4. 不调用验证任务或验证结果查询；需要分析验证数据时改走用户明确触发的 Badcase 流程。
 5. 精确修改跳过本步；其他分支才按 `[S2]` 加载改动范围内的规则与必要映射。比价项名称无法对应规则或基础正文时先澄清，不改写成相近名称。
 6. 精确修改只检查定位、重复和结构；其他分支再依据规则、映射和基础正文判断合理性。发现冲突、关键条件缺失或误判风险时说明并停止。
-7. 格式合规时做最小修改；不合规时按 [skeleton-format.md](skeleton-format.md) 重组并合入修改，保留无关业务规则。仅需范式时读取 [rule-writing-examples.md](rule-writing-examples.md)。全文按格式规范控制在 1 万字内；基础正文已超出时不借机大幅删减。
-8. 实际执行 `[S3]` 校验内部完整正文，不向用户展示全文。仅同一次调用返回 `resp_code=1`、`data.valid=true` 后进入提案，并原样记录 `data.diff_content` 和 `data.diff_record_id`；不得自行生成 Diff 或预演校验结果。
+7. 格式合规时做最小修改；不合规时必须先按 [skeleton-format.md](skeleton-format.md) 重组并合入修改，保留可识别且不冲突的业务规则。基础正文没有可保留的有效业务内容时，依据 `[S2]` 已加载的可信规则生成完整骨架；不得要求外部先补一版骨架。仅需范式时读取 [rule-writing-examples.md](rule-writing-examples.md)。全文按格式规范控制在 1 万字内；基础正文已超出时不借机大幅删减。
+8. 完成第 7 步候选全文后，实际执行 `[S3]` 校验这份内部完整正文，不向用户展示全文。严禁把未重构的基础正文（例如 `111`）作为 `prompt_content`。仅同一次调用返回 `resp_code=1`、`data.valid=true` 后进入提案，并原样记录 `data.diff_content` 和 `data.diff_record_id`；不得自行生成 Diff 或预演校验结果。`valid=false` 时忽略该次空 Diff，按校验错误修正候选全文并重试。
 
 ## 提案
 
