@@ -7,7 +7,8 @@
 
 1. 仅当业务上下文缺少 `ruleGroupId` 时执行 `[S1]`；已有则跳过。随后按
    [base-version-policy.md](base-version-policy.md) 确定并查询基础提示词版本。
-   本流程没有任务上下文自带的提示词，本轮未提供 ID 或名称时必须要求用户补充。
+   只使用当前业务上下文的 `promptVersionId`；缺失或为 0 时直接说明尚未初始化并停止，不向用户
+   索取 ID 或名称。
    查询结果的 `prompt_content` 必须非空；为 `null`、空串或仅空白字符时立即停止，说明该
    提示词尚未初始化，不能进行 Badcase 归因或修改，并建议先进入初始化提示词流程。
    非空时记录 `selectedPromptVersionId=data.prompt_version.prompt_version_id`，要求大于 0，

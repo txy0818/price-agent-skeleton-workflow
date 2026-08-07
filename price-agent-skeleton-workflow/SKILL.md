@@ -19,24 +19,27 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
 
 ## 提示词选择与写入
 
-- 初始化、修改和 Badcase 修改必须取得用户本轮指定的提示词 ID 或名称，并通过
-  `tool_query_prompt_skeleton` 精确查询；不得用最新草稿、线上版本或历史选择替代。
-- 查询成功后立即保存不可变的 `selectedPromptVersionId=data.prompt_version.prompt_version_id`；
-  必须大于 0。按内容锁定 `writeMode`：空 → `INITIALIZE`，非空 → `EDIT`。Badcase 遇空内容停止。
+- 提示词版本只取当前业务上下文的 `promptVersionId`，不再要求用户提供 ID 或名称，也不得从
+  用户文字、历史消息或查询结果猜测。`promptVersionId` 缺失或为 0 时只允许进入 `INITIALIZE`；
+  其他意图立即说明尚未初始化并停止。大于 0 时，初始化意图说明已有提示词并停止；修改和
+  Badcase 使用该 ID 精确查询并锁定 `writeMode=EDIT`。
 - `writeMode` 一旦锁定，校验结果、`diffRecordId` 和用户确认都不得改变它；两种模式确认后
-  都只调用 `tool_edit_prompt_skeleton`，并传锁定的 `selectedPromptVersionId`。
+  都只调用 `tool_edit_prompt_skeleton`：初始化传 `prompt_version_id=0`，修改传锁定的
+  `selectedPromptVersionId`。
 - 提案前执行 [shared-steps.md](references/shared-steps.md) 的 S3；确认后写入内容必须与校验内容
   完全一致。修改类只展示服务端 `data.diff_content`，用户要求时才展开全文。
-- 线上版本禁止初始化和修改。草稿、归档版本按内容路由：空内容可初始化，非空内容可修改。
-- `tool_edit_prompt_skeleton` 会在事务内查询基础版本正文：仍为空则原地填写，返回的
-  `new_prompt_version_id=基础ID`，Diff 的基础/新版本 ID 也都为该 ID；已非空则派生新草稿，
-  返回的 `new_prompt_version_id` 必须与基础 ID 不同。
+- 线上版本禁止修改。修改只接受正文非空的草稿或归档版本；查到空正文时停止并报告数据异常，
+  不切换到初始化，因为初始化只允许 `promptVersionId` 缺失或为 0。
+- 初始化校验与确认写入都按 `ruleGroupId` 再次检查是否已有 Prompt；已有时直接把服务端返回的
+  Prompt 结果告知用户，不生成提案、不写入。确实不存在时才创建首个草稿；初始化 Diff 的
+  `base_prompt_version_id=0`，`new_prompt_version_id` 不填。
+- 修改时 `tool_edit_prompt_skeleton` 仍按锁定的基础版本派生新草稿，返回的
+  `new_prompt_version_id` 必须与基础 ID 不同。
 - 两种结果都必须满足：返回成功、`new_prompt_version_id>0`、`version_no>0`、
-  `new_prompt_name` 非空；后续修改、验证和发布一律使用返回的 `new_prompt_version_id`。
-- 不自动验证或发布。
+  `new_prompt_name` 非空；后续修改和验证使用返回的 `new_prompt_version_id`。
 
-写入前必须再次检查：`writeMode` 与 MCP 匹配，且 `selectedPromptVersionId>0`。任一不满足就停止并
-重新精确查询，禁止把版本 ID 留空、传 0、改用 `save_prompt_draft` 或从其他字段猜 ID。
+写入前必须再次检查：`INITIALIZE` 只传 `prompt_version_id=0`，`EDIT` 只传锁定且大于 0 的
+`selectedPromptVersionId`。禁止改用 `save_prompt_draft` 或从其他字段猜 ID。
 
 ## 路由
 
@@ -52,7 +55,7 @@ description: 为 PriceStudio 初始化、修改或保存同款判定提示词（
 - 用户描述 Badcase：[badcase-description-workflow.md](references/badcase-description-workflow.md)
 - 纯查询：不加载 workflow，只调用对应只读 MCP。
 
-目标语义不清但已给提示词 ID/名称时，可精确只读查询后按内容是否为空路由；其他情况先澄清。
+目标语义不清时先澄清；不得让用户输入的提示词 ID/名称覆盖业务上下文 `promptVersionId`。
 S2 读取 [rule-loading-policy.md](references/rule-loading-policy.md)。生成全文时按 workflow 读取
 [rule-transformation-guide.md](references/rule-transformation-guide.md)；初始化必须已按上述前置门槛完整读取
 [skeleton-format.md](references/skeleton-format.md)。枚举存疑时读取 [enums.md](references/enums.md)；
