@@ -2,6 +2,14 @@
 
 共享步骤见 [shared-steps.md](shared-steps.md)。
 
+## 回复前执行门禁
+
+取得任务 ID 和 Case ID 后，输出前必须实际完成：读取 [shared-steps.md](shared-steps.md) 与 [rule-loading-policy.md](rule-loading-policy.md)；查询指定验证结果和 CDN；从任务结果锁定基础提示词；执行 `[S2]`；逐项核对商品快照与模型 `extracted`；完成五类归因。不得只报告“已加载流程”或预告下一步。
+
+- 缺少任务 ID 或 Case ID：只询问实际缺失的标识。
+- 非提示词缺陷或证据不足：当轮输出完整分析结果，不生成或校验提示词。
+- 确认属于提示词缺陷：当轮继续生成候选完整正文、实际执行 `[S3]`，并在 `valid=true` 后输出带服务端原样 Diff 的修改提案；不得等待用户再次回复才生成提案。
+
 ## 查询与复核
 
 1. 仅当业务上下文缺少 `ruleGroupId` 时执行 `[S1]`；已有则跳过。

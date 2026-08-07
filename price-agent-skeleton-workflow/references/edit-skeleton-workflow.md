@@ -14,6 +14,19 @@
 
 > **精确修改直达分支**：用户给出可唯一定位的增删改时，将其作为已授权修改目标，不执行 `[S2]`，不调用关系、规则或验证任务 MCP 复核。正文格式合规时只做该修改；不合规时同时按 `skeleton-format.md` 修复。`writeMode` 始终为 `EDIT`。
 
+## 回复前执行门禁
+
+本节是必须实际完成的顺序，不是计划、建议或说明。除工具返回明确错误外，完成全部门禁前禁止输出任何用户可见答复：
+
+1. 完整读取 [shared-steps.md](shared-steps.md)、[base-version-policy.md](base-version-policy.md) 和 [skeleton-format.md](skeleton-format.md)；缺少任一读取记录即不得继续或答复。
+2. 使用业务上下文 `promptVersionId` 精确查询基础版本，固定 `version_name=""`、`query_online=false`；查询成功后锁定 `selectedPromptVersionId=promptVersionId>0` 和 `writeMode=EDIT`。禁止改读初始化 workflow。
+3. 用户没有给出可唯一定位的精确增删改时，必须实际执行 `[S2]`，按 [rule-loading-policy.md](rule-loading-policy.md) 加载当前范围的规则和必要映射；禁止用格式模板中的占位符、示例或常识代替 MCP 结果。
+4. 在内存中生成符合 `skeleton-format.md` 的候选完整正文。基础正文为 `111` 或其他残缺内容时必须重构，禁止把基础原文直接提交校验。
+5. 必须实际调用 `tool_validate_prompt_skeleton`，其中 `prompt_content` 为第 4 步候选全文，`base_prompt_version_id=selectedPromptVersionId`。`valid=false` 时只按 errors 修正并在允许次数内重试；空 Diff 不构成停止理由。
+6. 仅在 `valid=true` 后输出“提示词修改提案”，原样展示同次调用的 `diff_content` 和 `diff_record_id`。`diff_record_id=0` 仍展示提案，不重复校验。
+
+禁止把“已加载 workflow / 下一步将查询 / 等你回复继续 / 请系统或产品先补骨架”作为正常结果。用户第一次请求修改时就完成上述读取、查询、生成、校验和提案；用户确认仅用于提案后的写入步骤。
+
 ## 查询与判断
 
 1. 仅当业务上下文缺少 `ruleGroupId` 时执行 `[S1]`；已有则跳过。

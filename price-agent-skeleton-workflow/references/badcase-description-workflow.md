@@ -3,6 +3,14 @@
 用户用文字、图片或商品信息描述 Badcase，但没有提供真实验证任务与 Case ID。
 共享步骤见 [shared-steps.md](shared-steps.md)。
 
+## 回复前执行门禁
+
+除明确缺少本流程规定的商品事实或标签外，输出前必须实际完成：读取 [shared-steps.md](shared-steps.md)、[base-version-policy.md](base-version-policy.md) 和 [rule-loading-policy.md](rule-loading-policy.md)；精确查询当前 `promptVersionId`；执行 `[S2]`；依据用户提供的原始信息、规则、映射和基础提示词完成归因。不得只报告“已加载流程”或预告下一步。
+
+- 证据不足：当轮输出缺失项和“证据不足”结论，不生成或校验提示词。
+- 非提示词缺陷：当轮输出完整分析结论，不输出 Diff。
+- 确认属于提示词缺陷：当轮继续生成候选完整正文、实际执行 `[S3]`，并在 `valid=true` 后输出带服务端原样 Diff 的修改提案；不得等待用户再次回复才生成提案。
+
 ## 提取与查询
 
 1. 仅当业务上下文缺少 `ruleGroupId` 时执行 `[S1]`；已有则跳过。随后按

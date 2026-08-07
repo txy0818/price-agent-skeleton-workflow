@@ -18,15 +18,21 @@ description: 为 PriceStudio 初始化、修改、保存同款判定提示词（
 
 每次只读取目标 workflow，并同时读取 [shared-steps.md](references/shared-steps.md) 和 [base-version-policy.md](references/base-version-policy.md)：
 
-- 路由判断只用于内部选择 workflow，不得把“应走初始化还是修改流程”的分析作为答复。命中 workflow 后必须在本轮立即读取并执行，持续到该流程规定的提案、结果或明确错误；不得只说明下一步将如何处理。
-- 路由优先级：用户明确要求分析/处理 Badcase、验证任务、验证结果时优先走对应 Badcase 流程；除此之外，只要 `promptVersionId>0`，普通的初始化、新建、重新生成、修改、优化及内容增删一律立即走 `EDIT`。没有 Badcase、分析结果或验证集不是缺少信息，不得查询验证数据、停留在解释或要求补充修改方向。
+| 优先级 | 条件 | 唯一路径 |
+|---|---|---|
+| 1 | 明确分析/处理 Badcase | 按输入选择 [badcase-single-workflow.md](references/badcase-single-workflow.md)、[badcase-task-workflow.md](references/badcase-task-workflow.md) 或 [badcase-description-workflow.md](references/badcase-description-workflow.md) |
+| 2 | 普通提示词操作且 `promptVersionId>0` | 读取 [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) 和完整 [skeleton-format.md](references/skeleton-format.md)，锁定 `writeMode=EDIT` |
+| 3 | 普通提示词操作且 `promptVersionId` 缺失、为 0 或为占位符 | 读取 [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md) 和完整 [skeleton-format.md](references/skeleton-format.md) |
+| 4 | 仅查询当前提示词 | 不加载 workflow；使用上下文 ID 精确查询，固定 `version_name=""` |
 
-- `promptVersionId` 缺失、为 0 或仍为模板占位符：读取 [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md)。生成正文前必须完整读取 [skeleton-format.md](references/skeleton-format.md)；读取失败即停止。
-- `promptVersionId>0` 且用户要求初始化、新建、重新生成、修改、优化或增删内容：读取 [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) 和完整的 [skeleton-format.md](references/skeleton-format.md)，锁定 `writeMode=EDIT`。无具体方向时直接使用该流程的默认整理目标，不得澄清 ID、名称或方向。
-- `promptVersionId>0` 且用户明确要求分析或处理 Badcase：按意图读取 [badcase-single-workflow.md](references/badcase-single-workflow.md)、[badcase-task-workflow.md](references/badcase-task-workflow.md) 或 [badcase-description-workflow.md](references/badcase-description-workflow.md)。仅确认属于提示词缺陷后才提出修改。
-- 用户未指定具体 ID 或名称、仅查询当前提示词：不加载 workflow，使用业务上下文 `promptVersionId` 调用只读 MCP，固定传 `version_name=""`，并说明当前提示词由页面左侧选定项决定。
+`promptVersionId` 数值条件高于“初始化、新建、重新生成”等用户措辞；`promptVersionId>0` 时“新建”表示派生新草稿。没有 Badcase 或验证数据不是信息缺失。路由仅用于内部选路，不向用户解释。
 
-目标确实不清时再澄清；`promptVersionId>0` 的普通提示词操作不属于语义不清。
+## 本轮完成契约
+
+- 命中 workflow 后立即完整读取其要求的依赖，并实际执行到该流程规定的提案、分析结果、查询结果或明确错误。
+- 禁止用“已加载流程”“下一步将查询/生成”“等你回复继续”代替执行。用户确认只发生在提案已经展示之后。
+- 候选提示词由 Skill 基于格式规范和可信 MCP 数据生成；服务端校验并计算 Diff。禁止等待服务端先提供 Diff 才生成候选正文。
+- `valid=false` 按 errors 修正并重试；`valid=true` 后按 `[S4]` 展示。`diff_record_id=0` 不影响提案，确认后按 `[S5]` 兜底。
 
 ## 修改与写入边界
 
