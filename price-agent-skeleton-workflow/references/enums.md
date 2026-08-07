@@ -43,7 +43,7 @@ Badcase 分析流程固定使用 `label_filter=3`。
 | 2 | 模型优化 |
 | 3 | 系统初始化 |
 
-本 Skill 产生的所有写入固定使用 `source_type=2`。
+初始化写入使用 `source_type=3`，修改写入使用 `source_type=2`。
 
 ## 通用返回码 `base_resp.resp_code`
 
@@ -63,3 +63,5 @@ Badcase 分析流程固定使用 `label_filter=3`。
 
 本 Skill 的初始化和修改流程固定传 `false`。这只表示不使用“自动查询当前线上版本”的模式；
 当业务上下文 `promptVersionId` 精确指向线上版本时，仍可按 ID 查询并将其作为只读基础派生新草稿。
+`version_name` 不得取自用户消息；用户指定具体版本名称时应按 SKILL 的最高优先级版本锁定规则
+直接终止。查询当前提示词时固定使用业务上下文 `promptVersionId`，并传 `version_name=""`。
