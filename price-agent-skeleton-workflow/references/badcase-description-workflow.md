@@ -3,11 +3,7 @@
 用户用文字、图片或商品信息描述 Badcase，但没有提供真实验证任务与 Case ID。
 共享步骤见 [shared-steps.md](shared-steps.md)。
 
-> **不得直接回复**：进入本流程后必须完整读取本文件及其要求的策略，完成事实提取、当前提示词
-> 查询、规则核对和归因后，才可按固定模板输出；提示词缺陷提案还必须完成真实 `[S3]`。
-> 用户结论明确也不得跳过归因或直接生成修改说明。
-
-## 回复前执行门禁
+## 执行门禁
 
 除明确缺少本流程规定的商品事实或标签外，输出前必须实际完成：读取 [shared-steps.md](shared-steps.md)、[base-version-policy.md](base-version-policy.md) 和 [rule-loading-policy.md](rule-loading-policy.md)；精确查询当前 `promptVersionId`；执行 `[S2]`；依据用户提供的原始信息、规则、映射和基础提示词完成归因。不得只报告“已加载流程”或预告下一步。
 
@@ -68,6 +64,4 @@
 
 ## 确认后
 
-只有证据充分、确认属于提示词缺陷且用户明确确认，才执行 `[S5]` 的 `EDIT` 路径，
-`prompt_version_id=本轮最新业务变量 promptVersionId`，不得沿用提案生成时记录的
-`selectedPromptVersionId`。
+只有证据充分、确认属于提示词缺陷且用户紧邻确认，才执行 `[S5]` 的 EDIT 路径。

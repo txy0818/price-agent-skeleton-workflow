@@ -1,26 +1,14 @@
 # 初始化提示词
 
-> **不得直接回复**：进入本流程后必须完整读取本文件及其要求的共享步骤、规则加载策略、转换指南
-> 和 `skeleton-format.md`，完成查重、规则加载、候选全文及真实 `[S3]` 校验后，才可按固定初始化
-> 提案模板回复。用户已给出完整方向也不得跳过上述步骤。
-
 对任意提示词写操作，只要 `promptVersionId` 缺失、为 0 或仍为模板占位符就进入本流程；用户具体使用新建、创建、初始化、重新生成、修改、优化、调整、增删或按照规则生成等哪一种说法都不影响路由。初始化没有基础版本。共享步骤见 [shared-steps.md](shared-steps.md)。
 
-## 必读门槛
+## 必读
 
-生成正文前完整读取 [skeleton-format.md](skeleton-format.md)；读取失败即停止，不得生成、校验或展示提案。[full-skeleton-example.md](full-skeleton-example.md) 仅在格式细节仍不明确时查看相关片段，不得复制其中的业务数据。
-
-## 回复前执行门禁
-
-本节是必须在第一条用户可见答复前实际完成的顺序，不是计划、建议或说明。除工具返回明确错误或查到已有提示词外，完成全部门禁前禁止输出任何用户可见答复：
-
-1. 完整读取 [shared-steps.md](shared-steps.md)、[base-version-policy.md](base-version-policy.md)、[skeleton-format.md](skeleton-format.md)、[rule-loading-policy.md](rule-loading-policy.md) 和 [rule-transformation-guide.md](rule-transformation-guide.md)。
-2. 确认业务上下文 `promptVersionId` 确实缺失、为 0 或为占位符；只要大于 0 就立即退出本流程并改走 EDIT，禁止继续初始化。
-3. 实际查询规则组是否已有提示词；明确不存在时立即执行 `[S2]`，加载全部关联类目规则及必要映射。
-4. 在内存中生成并自检完整候选正文，随后实际执行 `[S3]`；`valid=false` 时在本轮内部按 errors 自动修正并用完允许的重试次数，期间禁止向用户展示错误或询问是否同意补全。
-5. 仅在 `prompt_exists=false`、`valid=true` 且 `diff_record_id>0` 后，当轮输出完整初始化提案；用户确认只用于后续写入。
-
-初始化请求本身已经授权执行查询、候选正文生成、自动修正和校验，不需要用户再次确认开始或继续。禁止输出路由说明、步骤清单、进度、校验中间错误或异步承诺，包括“已进入/加载初始化流程”“接下来会查询”“正在生成/校验”“生成完成后再给你”“等你回复继续生成”“同意后补全/修复”。首条正常答复必须直接是 `valid=true` 的完整初始化提案；自动重试后仍失败则只返回最终错误。只有合规提案展示后的实际写入需要确认。
+完整读取 [shared-steps.md](shared-steps.md)、[base-version-policy.md](base-version-policy.md)、
+[skeleton-format.md](skeleton-format.md)、[rule-loading-policy.md](rule-loading-policy.md) 和
+[rule-transformation-guide.md](rule-transformation-guide.md)。[full-skeleton-example.md](full-skeleton-example.md)
+仅在格式仍不明确时读取相关片段，禁止复制业务数据。随后按下列顺序执行，首条可见回复只能是
+初始化提案、已存在结果或明确错误。
 
 ## 查询与生成
 
@@ -31,9 +19,11 @@
    - 返回非空 `data.prompt_version`：告知其 `version_name` 和 `prompt_version_id` 后停止，不加载规则、不生成或写入。
    - 明确不存在：继续。
    - 调用失败：按只读规则重试一次，仍失败则停止。
-4. 按 `[S2]` 加载全部关联类目规则及过滤后的品牌、材质关系，保留全部生效比价项；母子品牌最多 100 组、材质最多 50 组，优先删除低相关、不常见、跨行业及不确定项。
+4. 按 `[S2]` 加载全部关联类目规则及过滤后的品牌、材质关系，保留全部生效比价项。候选映射必须
+   是本轮关系工具返回集合的子集；母子品牌 100 组、材质 50 组只是上限，不足时保持实际数量，
+   禁止补齐、编造、跨行业拼接或复制示例。
 5. 读取 [rule-transformation-guide.md](rule-transformation-guide.md)，严格按 `skeleton-format.md` 生成并自检完整正文，不得改用其他结构或把示例当业务事实。
-6. 用完整正文执行 `[S3]`，其中 `base_prompt_version_id=0`。若 `data.prompt_exists=true`，返回 `existing_prompt_name` 和 `existing_prompt_version_id` 后停止；仅 `prompt_exists=false` 且 `valid=true` 时展示提案。初始化 Diff 的 `new_prompt_version_id` 留空。
+6. 用完整正文执行 `[S3]`，其中 `base_prompt_version_id=0`；初始化的查重响应和 Diff 字段按 `[S3]` 处理。
 
 ## 提案
 
@@ -57,14 +47,8 @@
 以上仅为提案。确认无误请回复：**确认初始化提示词**。确认后服务端会再次检查该规则组是否已有提示词；已有则直接返回现有结果，仍不存在才创建首个提示词草稿。
 `````
 
-发送前按 `[S4]` 输出协议自检。全文必须放入同一个四反引号 `text` 围栏，全文内部的三反引号
-代码围栏原样保留。只有取得非零 `diff_record_id` 才能展示本提案；ID 缺失或为 0 时返回明确错误，
-不得确认或写入。
+发送前按 `[S4]` 自检。
 
 ## 确认后
 
-执行 `[S5]`：`prompt_version_id` 重新读取本轮最新业务变量 `promptVersionId`，`source_type=3`，不得
-因提案生成时是初始化而强制改回 0。服务端校验本轮版本与 Diff 基础版本的关联关系；匹配且防重
-命中时返回现有 Prompt，不创建，创建成功后告知实际的 `new_prompt_version_id`、
-`new_prompt_name` 和 `version_no`。这些字段只用于展示，不写回业务上下文；后续回合重新读取本轮
-`promptVersionId`。
+紧邻确认时执行 `[S5]`，使用 `source_type=3`；其余取值、校验和回复完全按 `[S5]`。

@@ -2,11 +2,7 @@
 
 共享步骤见 [shared-steps.md](shared-steps.md)。
 
-> **不得直接回复**：进入本流程后必须完整读取本文件及其要求的策略，按任务 ID 和 Case ID 查询
-> 真实验证结果、核对快照和提示词后，才可按固定模板输出；提示词缺陷提案还必须完成真实 `[S3]`。
-> 用户已给出结论、截图或 CDN 也不得替代上述步骤。
-
-## 回复前执行门禁
+## 执行门禁
 
 取得任务 ID 和 Case ID 后，输出前必须实际完成：读取 [shared-steps.md](shared-steps.md) 与 [rule-loading-policy.md](rule-loading-policy.md)；查询指定验证结果和 CDN；从任务结果锁定基础提示词；执行 `[S2]`；逐项核对商品快照与模型 `extracted`；完成五类归因。不得只报告“已加载流程”或预告下一步。
 
@@ -96,7 +92,5 @@ Diff；CDN 必须是最后一行。
 
 ## 确认后
 
-只有提示词缺陷且用户明确确认，才执行 `[S5]` 的 `EDIT` 路径，
-`prompt_version_id=本轮最新业务变量 promptVersionId`，不得沿用提案生成时记录的
-`selectedPromptVersionId`。
+只有提示词缺陷且用户紧邻确认，才执行 `[S5]` 的 EDIT 路径。
 本轮不再输出 CDN。

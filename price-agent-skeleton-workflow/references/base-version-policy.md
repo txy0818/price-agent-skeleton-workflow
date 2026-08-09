@@ -1,8 +1,5 @@
 # 基础版本选择策略
 
-> **不得直接回复**：允许查询当前提示词时，必须按本文件使用本轮 `promptVersionId` 精确调用查询
-> MCP，并只依据真实响应输出；不得用页面截图、历史结果、用户给出的名称/ID 或模型记忆代替查询。
-
 ## 查询对象门禁
 
 仅“当前提示词/当前选中的提示词”允许执行下述精确查询。用户要求最新、线上最新、线上、归档、
@@ -12,12 +9,6 @@
 每个用户回合只使用本轮业务上下文注入的 `promptVersionId`。`new_prompt_version_id`、
 `existing_prompt_version_id` 和其他历史 Prompt ID 仅供展示，绝不能成为下一轮 `promptVersionId`。
 进入本策略时必须重新读取本轮值；不得从用户消息、历史记录、版本名称或工具结果推断、写回或切换。
-
-用户确认提案时，`prompt_version_id` 仍取本轮最新业务变量 `promptVersionId`；
-`diff_record_id` 只取紧邻提案同次 S3 返回值。非紧邻提案即使明确提供 Diff ID 也不得确认。
-不得为匹配旧提案而沿用上一轮
-`promptVersionId`。两者是否关联由 `tool_edit_prompt_skeleton` 根据 Diff 记录校验。
-
 
 ## 路由与校验
 
