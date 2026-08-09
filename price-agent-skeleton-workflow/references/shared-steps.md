@@ -28,7 +28,7 @@ Badcase 按目标范围加载。相同工具、入参和作用域可复用本轮
    栏目、规则名或机械扩写。
 3. JSON 围栏后保留 `字段规则：` 和完整 8 条规则：`category`、具体 `confidence`、缺失值、三种
    `source`、布尔 `match`、多来源拼接、多部位材质、`key_diff_point`。
-4. 本轮影响的比价项和母子品牌序列从 1 连续重编号；映射标题数量等于实际条目数。
+4. 本轮影响的比价项和母子品牌序列从 1 连续重编号；映射标题不写组数。
 
 调用：
 
@@ -37,8 +37,9 @@ Badcase 按目标范围加载。相同工具、入参和作用域可复用本轮
 `rule_group_id`、`agent_id` 至少一个大于 0；EDIT 的 `selectedPromptVersionId>0`。初始化先处理
 `data.prompt_exists`：为 true 时返回 `existing_prompt_version_id/name` 后停止；为 false 才继续。
 
-- `resp_code=1 && data.valid=true && data.diff_record_id>0`：成功，保留同次
-  `prompt_content`、`diff_record_id`、`diff_content`。
+- `resp_code=1 && data.valid=true && data.diff_record_id>0`：成功，锁定本次请求传入的完整
+  `prompt_content`，并保留同次响应的 `diff_record_id`、`diff_content`。后续展示继续引用这个
+  已提交变量，禁止重新生成。
 - `valid=false`：只按 `data.errors` 修正报错处，其他正文不变，最多重试 2 次；空 Diff/ID=0
   只是本次未形成提案，不得提前停止或展示中间错误。
 - 其他情况或重试后仍失败：只返回最终错误，不展示提案、不写入、不请求用户授权后再修复。
@@ -53,9 +54,11 @@ Diff 只取服务端 `data.diff_content`，禁止自行书写。校验调用会�
 
 - 修改/Badcase 修复：只展示同次 S3 的非零 `diff_record_id` 和逐字符复制的 `diff_content`，使用
   `diff` 围栏并保留 `+`、`-`、空格、标题和顺序；不得摘要、解释、补删或重编号。提案写明当前
-  提示词由页面左侧选择的 `promptVersionId` 决定。用户明确要求展开全文时才完整输出。
-- 初始化：展示同次 S3 候选完整正文，放入一个四反引号 `text` 围栏；正文内三反引号原样保留，
-  不得省略、拆分、重生成或用示例替代。
+  提示词由页面左侧选择的 `promptVersionId` 决定。用户明确要求展开全文时，逐字符输出同次 S3
+  请求已经提交并锁定的 `prompt_content`，不得重新生成。
+- 初始化：逐字符展示同次 S3 请求已经提交并锁定的 `prompt_content`，放入一个四反引号 `text`
+  围栏；正文内三反引号原样保留，不得省略、拆分、重生成或写“其余组”。展示变量与 S3 请求变量
+  必须是同一字符串对象；展示完成前不得覆盖、拼接或改写。
 
 提案统一展示“修改建议 ID（diff_id）”、标注“尚未保存”并以模板确认话术结尾。
 
