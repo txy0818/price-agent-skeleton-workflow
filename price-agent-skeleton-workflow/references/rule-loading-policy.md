@@ -16,17 +16,16 @@
    要求业务成功、`isExist=true` 且 `data.labelCateRule` 完整。记录每个 ID 对应的
    `cateName`、`cateNameTree`、`belongBusiness` 和 `minCateId`，作为本轮唯一类目作用域。
 3. Badcase 按目标 workflow 的真实样本类目查询规则；不得用空提示词或模型猜测类目。
-4. 初始化必须加载母子品牌关系 Skill 和材质关系 Skill，并调用各自文档规定的 MCP；工具不可用、
-   调用失败或响应无法解析时停止，禁止继续生成映射或用模型知识兜底。
+4. 初始化调用 `radar_query_brand_relation` 查询母子品牌，再加载材质关系 Skill 并调用其规定的
+   MCP；工具不可用、调用失败或响应无法解析时停止，禁止继续生成映射或用模型知识兜底。
 
 ### 统一作用域过滤
 
-品牌和材质主要按第二步规则响应中的 `cateName` 过滤：关系的 `cateName` 必须与至少一个当前
-`labelCateRule.cateName` 精确一致，才形成正向命中；缺失或不一致即不内嵌。`cateNameTree` 用于
-确认完整路径，`minCateId` 和 `belongBusiness` 用于辅助校验；任一已提供字段与命中的类目规则
-冲突即删除，不能靠其他字段或常识放行。多类目分别过滤后取并集并记录命中的 categoryId/cateName，
-不得扩大成“电商全站”。最后用常识进一步删除明显跨行业、低相关或不确定项；常识只能删除，
-不能恢复未命中项，也不能新增、合并、改名或补别名。
+品牌和材质以第二步规则响应中的 `cateName` 为主要过滤依据，`cateNameTree`、`minCateId` 和
+`belongBusiness` 用于确认完整作用域。关系响应若提供这些字段，必须与至少一个当前类目一致，任一
+已提供字段冲突即删除；`radar_query_brand_relation` 当前响应不提供类目字段时，以当前类目作用域
+对品牌主营范围做保守语义筛选，只保留可确认与当前类目直接相关的组。多类目分别过滤后取并集，
+不得扩大成“电商全站”。常识只能删除，不得新增、恢复、合并、改名或补别名。
 
 ### 类目规则
 
@@ -42,17 +41,32 @@ Badcase 有商品 ID 时可按目标 workflow 使用 `itemId`；不要传互相�
 - 规则：`searchMethod`、`ruleTableInfo.ruleTableInfo[]` 中的 `compareItem`、`infoSource`、
   `compareLogic`，以及 `specialRuleContent.ruleContent`。
 
-`specialRuleContent.ruleContent` 非空时，必须逐条保留其可执行语义及后续项目符号中的条件；允许
-删除解释、重复和非必要示例，但不得概括成“按特殊规则处理”。明确点名或语义唯一归属已有比价项
-的写入该项，其余写入总原则；不得生成新比价项。
-
 要求 `result=1`、业务响应成功、`isExist=true`、作用域和规则表非空。
 
 ### 主子品牌
 
-初始化必须加载主子品牌关系 Skill，并按其文档使用当前真实类目、业务线等过滤参数调用查询 MCP；
-不得只凭工具名称猜测入参。用户明确要求新增、删除、替换某组关系或调整其中成员时不进入本节，
-也不查询关系库复核，直接以当前提示词和用户指令完成精确修改。
+初始化在类目规则查询完成后调用 `radar_query_brand_relation`。严格按当前 MCP schema 调用：方法无
+入参时直接调用；若 schema 明确提供 `keyword`，全量查询传 `keyword=""`；不得自行添加
+`cateName`、`categoryId` 或其他未定义参数。
+
+成功条件：顶层 `result=1`、`error_msg` 为空、`data.baseResp.respCode=1`，且 `data.groups` 可解析。
+只读取：
+
+- `groups[].mainBrand.id/brandName/isMainBrand/parentId`；
+- `groups[].subBrands[].id/brandName/isMainBrand/parentId`；
+- `groups[].subCount`。
+
+每组必须满足：主品牌名称非空、`mainBrand.isMainBrand=true`、`mainBrand.parentId=0`；至少一个
+子品牌，且每个子品牌名称非空、`isMainBrand=false`、`parentId=mainBrand.id`；`subCount` 必须等于
+有效 `subBrands` 数量。不满足的整组删除，例如 `subBrands=[]`、`subCount=0` 的测试主品牌不输出。
+最终文本只使用 `brandName`，不得输出 ID、备注、更新人或更新时间。
+
+该方法返回全量关系且不携带类目字段。必须用本轮 `radar_query_price_rule` 的 `cateName` 为主、
+`cateNameTree` 和 `belongBusiness` 为辅进行保守筛选；只保留能确认主营商品与当前类目直接相关的
+品牌组，跨行业或不确定组删除。页面或响应中的总组数（例如 192）只是候选总量，不是生成目标。
+
+用户明确要求新增、删除、替换某组关系或调整其中成员时不进入本节，也不查询关系库复核，直接以
+当前提示词和用户指令完成精确修改。
 
 最终每个 `mainBrand + subBrands[]` 必须能在本轮工具响应中逐项找到；只允许筛除，不允许新增、
 合并、补别名或凭常识扩展。**100 组是上限，不是生成目标**；返回或过滤后只有 3 组就只写 3 组。
@@ -96,7 +110,7 @@ Badcase 有商品 ID 时可按目标 workflow 使用 `itemId`；不要传互相�
 
 | 流程 | 类目规则 | 品牌 | 材质 |
 |---|---|---|---|
-| 初始化 | `tool_query_category_ids` 后逐 ID 查询 | 必须加载关系 Skill、主要按 `cateName` 过滤 | 必须加载关系 Skill、主要按 `cateName` 过滤 |
+| 初始化 | `tool_query_category_ids` 后逐 ID 查询 | 调用 `radar_query_brand_relation`，主要按 `cateName` 过滤 | 必须加载关系 Skill、主要按 `cateName` 过滤 |
 | 修改 | 仅非精确修改时按需查询 | 仅非精确修改且工具存在时查询 | 仅非精确修改且工具存在时查询 |
 | Badcase | 按样本商品或类目查询 | 涉及品牌才按商品品牌查 | 涉及材质才全量查后过滤 |
 

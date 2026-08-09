@@ -25,17 +25,12 @@
 调用校验前完成四项检查：
 
 1. 从格式规范完整复制 `# 输出格式` 固定块至第 8 条 `key_diff_point` 规则，不因长度或类目裁剪。
-2. 逐项核对：`infoSource→优先级`，`compareLogic` 与可归属本项的特殊规则统一写入“匹配”；
-   `specialRuleContent.ruleContent` 的每条编号项及后续项目符号均已处理：明确点名或语义唯一归属
-   已有比价项的写入该项，其余写入总原则。普通比价项只保留必要条件、阈值、默认值和边界；品牌、
-   材质必须完整展开可信的具名规则、抽取格式、互认/交集规则、无效值、特殊边界及消歧示例。
-   特殊规则不得生成新比价项或 `extracted` 字段，也不得自拟规则。
+2. 候选正文已完整遵守 [rule-transformation-guide.md](rule-transformation-guide.md) 的转换步骤。
 3. JSON 围栏后保留 `字段规则：` 和完整 8 条规则：`category`、具体 `confidence`、缺失值、三种
    `source`、布尔 `match`、多来源拼接、多部位材质、`key_diff_point`。
 4. 修改完成后丢弃母子品牌旧序号，按当前行顺序把整个映射表重写为 `1..N`；任意相邻两项必须
    相差 1，禁止缺号或重复。删除原第 K 项时，原 K+1 必须变 K、原 K+2 变 K+1，直至末项。
    比价项序列同样连续；映射标题使用三级标题、真实范围且不写组数。未通过不得调用 S3。
-
 调用：
 
 `tool_validate_prompt_skeleton(prompt_content=<候选全文>, operator=上下文.operator, conversation_id=上下文.localConversationId, base_prompt_version_id=<INITIALIZE传0；EDIT传selectedPromptVersionId>, rule_group_id=上下文.ruleGroupId, agent_id=上下文.agentId)`
