@@ -17,10 +17,15 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 
 ## 识别操作
 
-- 明确对象是“提示词/骨架”，或当前页面仅出现新建、修改、优化、完善等写操作词而未说对象 →
-  提示词写操作。
-- 仅说“完善规则”“修改规则”等泛化对象，未说明比价项、关系、阈值或具体改动 → 不进入 workflow、
-  不调用 MCP；回复：“我还不确定你说的‘规则’具体指什么，请说明要调整的规则或具体内容。”
+- “优化提示词”“改善提示词”“修改提示词”“完善提示词”“重写提示词”及对应“骨架”说法，即使
+  没有说明方向或具体内容，也属于完整的提示词写操作；禁止追问，直接按本轮 `promptVersionId`
+  进入下表 EDIT 或 INITIALIZE。
+- 当前页面仅出现“新建、修改、优化、改善、完善”等写操作词而未说对象，也按提示词写操作处理。
+- 仅说“优化规则”“改善规则”“完善规则”“修改规则”等泛化对象，且未说明比价项、母子品牌、
+  材质、阈值或具体改动 → 不进入 workflow、不调用 MCP；只回复：“我还不确定你说的‘规则’具体
+  指什么，请说明要调整的规则或具体内容。”
+- “修改规则：<具体内容>”、明确某个比价项，或给出可执行的规则增删改内容 → 提示词写操作；
+  不因用户使用“规则”一词而追问。
 - “新增母子品牌：A→B”“删除材质映射：X→Y”等内容可唯一定位 → 精确提示词写操作。
 - 写操作即使没有方向也是完整请求，禁止追问方向或索取 Badcase；只按 `promptVersionId` 选路，
   用户使用“初始化”或“修改”等措辞不能改变版本路由。
@@ -34,8 +39,8 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 | 用户文字描述的 Badcase | [badcase-description-workflow.md](references/badcase-description-workflow.md) |
 | 仅查询当前提示词 | [base-version-policy.md](references/base-version-policy.md) |
 | 紧邻上一条助手提案后的确认 | 恢复该提案 workflow，只执行 [shared-steps.md](references/shared-steps.md) `[S5]` |
-| 提示词写操作且 `promptVersionId>0` | [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) |
-| 提示词写操作且 `promptVersionId` 缺失、为 0 或占位符 | [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md) |
+| 提示词写操作且 `promptVersionId>0`（包括无方向的优化/改善/修改提示词） | [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) |
+| 提示词写操作且 `promptVersionId` 缺失、为 0 或占位符（包括无方向的优化/改善/修改提示词） | [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md) |
 
 ## 不可跳过
 
