@@ -12,7 +12,7 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
   推断或替换本轮值；即使上轮刚创建新版本，本轮查询、选路、校验和写入也只用本轮
   `promptVersionId`。此规则不要求重查仍有效的规则、映射、类目或 Agent 数据。用户指定版本时，
   仅提示其先在页面左侧切换，不调用 MCP。
-- 确认提案时，两个字段分别取值：`diff_record_id` 必须使用按后文确认规则定位的目标提案对应
+- 确认提案时，两个字段分别取值：`diff_record_id` 必须使用紧邻提案对应
   S3 返回值；`prompt_version_id` 必须使用本轮最新业务变量 `promptVersionId`。不得用其中一个
   字段替代另一个，也不得沿用上一轮 `promptVersionId`。两者的基础版本关联关系由
   `tool_edit_prompt_skeleton` 根据 Diff 记录校验；不匹配时据实报告错误，不切换版本、不重新生成、
@@ -38,7 +38,7 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 | 验证任务或批量 Badcase | [badcase-task-workflow.md](references/badcase-task-workflow.md) |
 | 用户文字描述的 Badcase | [badcase-description-workflow.md](references/badcase-description-workflow.md) |
 | 仅查询当前提示词/当前选中的提示词 | [base-version-policy.md](references/base-version-policy.md)，按上下文 ID 精确只读查询 |
-| 紧邻已展示提案后的裸确认，或明确携带 `diffId` 的历史提案确认 | 恢复对应提案所属 workflow，只执行 [shared-steps.md](references/shared-steps.md) 的 `[S5]` |
+| 紧邻上一条助手回复所展示提案后的确认 | 恢复该提案所属 workflow，只执行 [shared-steps.md](references/shared-steps.md) 的 `[S5]` |
 | 提示词写操作且 `promptVersionId>0` | [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) |
 | 提示词写操作且 `promptVersionId` 缺失、为 0 或占位符 | [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md) |
 
@@ -66,11 +66,9 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 
 `INITIALIZE` 还必须满足：`base_prompt_version_id=0`，先完成规则组查重，再生成完整正文并调用上述校验；只有取得非零 `data.diff_record_id` 才能展示提案，确认后 `[S5]` 只传该 ID。
 
-裸确认只在助手上一条回复就是待确认提案时有效；提案后出现任何其他用户消息即失去紧邻关系，
-后续裸确认不得复用该 Diff ID 或调用写入工具，应要求 `确认 diffId=<修改建议ID>`。明确携带
-`diffId` 时，只能恢复当前会话内已展示且 ID 一致的唯一提案；无匹配或不唯一则停止，禁止猜测
-最近 ID。确认后按 `[S5]` 传目标提案同次 S3 的非零 `diff_record_id` 和本轮 `promptVersionId`，
-不得传 `prompt_content`。
+确认只在助手上一条回复就是待确认提案时有效；提案后出现任何其他用户消息即永久失效，后续即使
+明确提供 `diffId` 也不得恢复该提案或调用写入工具，只能要求重新生成提案。确认后按 `[S5]` 传
+紧邻提案同次 S3 的非零 `diff_record_id` 和本轮 `promptVersionId`，不得传 `prompt_content`。
 
 所有 workflow 的提案必须逐项、按序使用该 workflow 指定的完整模板，并执行 `[S4]` 输出协议；
 模板前后不得添加文字，禁止省略字段、输出占位符或改写服务端 Diff。

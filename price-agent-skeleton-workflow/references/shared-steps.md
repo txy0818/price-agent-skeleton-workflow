@@ -120,17 +120,12 @@ Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，
 
 ## S5 确认后写入草稿
 
-先确定目标提案：
-
-- 裸确认只绑定助手紧邻上一条回复中的提案。提案后出现任何其他用户消息，即使助手随后只是询问
-  或回复，也不得再用裸确认恢复该提案；不调用工具，仅提示 `请明确回复：确认 diffId=<修改建议ID>。`
-- 用户明确确认 `diffId=<正整数>` 时，可跨多轮恢复当前会话中已展示且 ID 完全一致的提案；必须
-  能唯一找到该提案及其同次 S3 记录。找不到或存在歧义时停止，禁止选择最近一次 Diff ID。
-- 用户给出的 `diffId` 只用于选择已展示提案，不能凭该 ID 构造未展示的提案。
+只允许确认助手上一条回复中的提案。提案后出现任何其他用户消息，即使助手随后只是询问或回复，
+该提案也永久失效；后续即使明确提供 `diffId` 也不得恢复或调用工具，只能要求重新生成提案。
 
 确认阶段重新读取本轮业务上下文注入的 `promptVersionId`，不得沿用生成提案时的版本 ID，也不得
 使用上轮写入响应的 `new_prompt_version_id`。
-`prompt_diff_record_id` 使用上述目标提案同次 `[S3]` 返回的非零 ID。
+`prompt_diff_record_id` 使用紧邻提案同次 `[S3]` 返回的非零 ID。
 
 写入只允许调用 `tool_edit_prompt_skeleton`。`prompt_version_id` 原样取本轮最新
 `promptVersionId`：数值为 0 时传 0，大于 0 时传该值；缺失或仍为模板占位符时停止。原提案的
@@ -142,7 +137,10 @@ Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，
 
 **初始化、修改和 Badcase 修复写入**：都只调用一次 `tool_edit_prompt_skeleton`，组合使用上一轮提案
 保留的 Diff ID 与本轮最新版本 ID：
-`tool_edit_prompt_skeleton(rule_group_id=当前业务上下文.ruleGroupId, prompt_version_id=当前业务上下文.promptVersionId, operator=当前业务上下文.operator, source_type=<INITIALIZE 传3；EDIT传2>, prompt_diff_record_id=<目标提案同次 S3 返回的 diff_record_id>)`。
+`tool_edit_prompt_skeleton(rule_group_id=当前业务上下文.ruleGroupId, prompt_version_id=当前业务上下文.promptVersionId, operator=当前业务上下文.operator, source_type=<INITIALIZE 传3；EDIT传2>, prompt_diff_record_id=<紧邻提案同次 S3 返回的 diff_record_id>)`。
+
+服务端校验消息序列必须为提案 assistant=N、当前确认 user=N+1、当前生成 assistant=N+2；不满足时
+返回“修改建议只能在展示后的下一轮立即确认”，据实告知用户并停止，不重试。
 
 不得在模型侧用上一轮版本替换本轮 `promptVersionId`，也不得因怀疑不匹配而重新校验或生成 Diff。
 服务端会用 Diff 记录保存的 `base_prompt_version_id` 校验本轮 `prompt_version_id`；返回

@@ -14,7 +14,8 @@
 进入本策略时必须重新读取本轮值；不得从用户消息、历史记录、版本名称或工具结果推断、写回或切换。
 
 用户确认提案时，`prompt_version_id` 仍取本轮最新业务变量 `promptVersionId`；
-`diff_record_id` 取确认规则定位的目标提案同次 S3 返回值。不得为匹配旧提案而沿用上一轮
+`diff_record_id` 只取紧邻提案同次 S3 返回值。非紧邻提案即使明确提供 Diff ID 也不得确认。
+不得为匹配旧提案而沿用上一轮
 `promptVersionId`。两者是否关联由 `tool_edit_prompt_skeleton` 根据 Diff 记录校验。
 
 
