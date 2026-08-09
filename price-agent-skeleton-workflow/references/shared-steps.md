@@ -120,12 +120,17 @@ Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，
 
 ## S5 确认后写入草稿
 
-确认阶段重新读取本轮最新业务变量 `promptVersionId`，不得沿用生成提案时的上一轮版本 ID。
+确认阶段重新读取本轮业务上下文注入的 `promptVersionId`，不得沿用生成提案时的版本 ID，也不得
+使用上轮写入响应的 `new_prompt_version_id`。
 `prompt_diff_record_id` 仍使用紧邻上一轮提案同次 `[S3]` 返回的非零 ID。
 
 写入只允许调用 `tool_edit_prompt_skeleton`。`prompt_version_id` 原样取本轮最新
 `promptVersionId`：数值为 0 时传 0，大于 0 时传该值；缺失或仍为模板占位符时停止。原提案的
 `writeMode` 只决定 `source_type`，不得用它把本轮版本改回提案生成时的版本。
+
+调用写入前，`promptVersionId>0` 时必须按 [base-version-policy.md](base-version-policy.md) 精确查询
+本轮版本，记录真实 `prompt_version_id`、`version_name`、`version_no`，查询失败则停止且不写入；
+不得沿用提案中的基础版本名称或版本号。`promptVersionId=0` 时基础提示词统一记为“无（初始化）”。
 
 **初始化、修改和 Badcase 修复写入**：都只调用一次 `tool_edit_prompt_skeleton`，组合使用上一轮提案
 保留的 Diff ID 与本轮最新版本 ID：
@@ -138,12 +143,27 @@ Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，
 
 不传 `prompt_content`：服务端一律以库中记录为准，传了也会被忽略。
 
+写入成功后必须使用以下固定回复，字段只取写入前基础版本查询和本次写入响应；模板前后不得添加
+其他内容：
+
+```markdown
+## 提示词草稿创建成功
+- 修改建议 ID（diff_id）：`<本次请求的 prompt_diff_record_id>`
+- 基础提示词：`<写入前查询的 version_name>`（ID：`<prompt_version_id>`，版本号：`<version_no>`）
+- 新提示词：`<响应 data.new_prompt_name>`（ID：`<data.new_prompt_version_id>`，版本号：`<data.version_no>`）
+- 状态：草稿已创建
+```
+
+初始化时“基础提示词”写：`无（prompt_version_id=0，初始化）`。不得自行总结变更内容；用户已在
+提案中看到服务端 Diff，成功回复不再改写或复述 Diff。
+
 初始化确认时服务端再次按规则组查重：已有就直接返回现有 Prompt，没有才创建首个草稿；初始化
-Diff 的基础版本 ID 为 0、新版本 ID 为空。修改仍基于锁定版本派生新草稿。写入后把工具实际返回的 ID、
-名称和版本关系告知用户；后续修改和验证使用该 ID。
+Diff 的基础版本 ID 为 0、新版本 ID 为空。修改仍基于锁定版本派生新草稿。写入后只展示工具实际
+返回的 ID、名称和版本关系；返回的新 ID 不更新业务上下文，后续回合仍重新读取本轮 `promptVersionId`。
 
 初始化写入响应 `data.prompt_exists=true` 表示确认时已经存在 Prompt：明确告知用户本次未新建，
-直接展示返回的 `new_prompt_version_id`、`new_prompt_name`、`version_no`。
+仍按上述模板展示返回的 `new_prompt_version_id`、`new_prompt_name`、`version_no`，并把状态改为
+“已存在，未新建”。
 
 返回“该修改建议已处理或已失效”时，说明该建议已被其他路径写入，**不得重试或改传正文**，
 否则会重复创建草稿；改为向用户说明并请其刷新查看。

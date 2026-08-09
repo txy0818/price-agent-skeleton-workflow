@@ -7,9 +7,11 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 
 ## 全局边界
 
-- Prompt 版本 ID 只取本轮最新 `promptVersionId`，覆盖历史和旧工具结果；版本查询、选路及传
-  `prompt_version_id` 时重新读取，禁止沿用、猜测或切换。此规则不要求重查仍有效的规则、映射、
-  类目或 Agent 数据。用户指定版本时，仅提示其先在页面左侧切换，不调用 MCP。
+- 每个用户回合开始时，只读取本轮业务上下文注入的 `promptVersionId`。历史消息和工具返回中的
+  `new_prompt_version_id`、`existing_prompt_version_id` 及任何 Prompt ID 都只是结果字段，禁止写回、
+  推断或替换本轮值；即使上轮刚创建新版本，本轮查询、选路、校验和写入也只用本轮
+  `promptVersionId`。此规则不要求重查仍有效的规则、映射、类目或 Agent 数据。用户指定版本时，
+  仅提示其先在页面左侧切换，不调用 MCP。
 - 确认上一轮提案时，两个字段分别取值：`diff_record_id` 必须使用紧邻上一轮已展示提案对应的
   S3 返回值；`prompt_version_id` 必须使用本轮最新业务变量 `promptVersionId`。不得用其中一个
   字段替代另一个，也不得沿用上一轮 `promptVersionId`。两者的基础版本关联关系由

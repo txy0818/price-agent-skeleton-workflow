@@ -23,7 +23,7 @@
 本节是必须实际完成的顺序，不是计划、建议或说明。除工具返回明确错误外，完成全部门禁前禁止输出任何用户可见答复：
 
 1. 完整读取 [shared-steps.md](shared-steps.md)、[base-version-policy.md](base-version-policy.md) 和 [skeleton-format.md](skeleton-format.md)；缺少任一读取记录即不得继续或答复。
-2. 使用业务上下文 `promptVersionId` 精确查询基础版本，固定 `version_name=""`、`query_online=false`；查询成功后锁定 `selectedPromptVersionId=promptVersionId>0` 和 `writeMode=EDIT`。禁止改读初始化 workflow。
+2. 丢弃历史和工具结果中的所有 Prompt ID，只读取本轮业务上下文注入的 `promptVersionId` 并精确查询，固定 `version_name=""`、`query_online=false`；查询成功后令 `selectedPromptVersionId=本轮 promptVersionId`，锁定 `writeMode=EDIT`。`selectedPromptVersionId` 禁止取上轮的 `new_prompt_version_id`。禁止改读初始化 workflow。
 3. 用户没有给出可唯一定位的精确增删改时，必须实际执行 `[S2]`，按 [rule-loading-policy.md](rule-loading-policy.md) 加载当前范围的规则和必要映射；禁止用格式模板中的占位符、示例或常识代替 MCP 结果。
 4. 在内存中生成符合 `skeleton-format.md` 的候选完整正文。基础正文为 `111` 或其他残缺内容时必须重构，禁止把基础原文直接提交校验。
 5. 必须实际调用 `tool_validate_prompt_skeleton`，其中 `prompt_content` 为第 4 步候选全文，`base_prompt_version_id=selectedPromptVersionId`。`valid=false` 时只按 errors 修正并在允许次数内重试；空 Diff 不构成停止理由。
@@ -34,7 +34,9 @@
 ## 查询与判断
 
 1. 仅当业务上下文缺少 `ruleGroupId` 时执行 `[S1]`；已有则跳过。
-2. 按 [base-version-policy.md](base-version-policy.md) 查询基础版本；记录 `selectedPromptVersionId=data.prompt_version.prompt_version_id>0` 并锁定 `writeMode=EDIT`。
+2. 按 [base-version-policy.md](base-version-policy.md) 查询基础版本；仅当响应中的版本 ID 等于本轮
+   `promptVersionId` 时记录 `selectedPromptVersionId=本轮 promptVersionId` 并锁定 `writeMode=EDIT`，
+   不等则报告查询数据错误并停止。
 3. 按 [skeleton-format.md](skeleton-format.md) 完整审计基础正文；任一要求不符均标记为“需要格式修复”并在本次修复。基础正文即使只有 `111` 或其他残缺内容，也只是需要重构的基础版本，不得把原文直接提交 `[S3]` 后因校验失败而停止。
 4. 不调用验证任务或验证结果查询；需要分析验证数据时改走用户明确触发的 Badcase 流程。
 5. 精确修改跳过本步；其他分支才按 `[S2]` 加载改动范围内的规则与必要映射。比价项名称无法对应规则或基础正文时先澄清，不改写成相近名称。
