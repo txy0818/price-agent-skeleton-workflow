@@ -112,8 +112,9 @@
 3. 基于 `PromptVersionBaseInfo.prompt_content` 执行 `[S3]` 生成并校验一份合并后的完整
    提示词，最终 Diff 取 `[S3]` 返回的 `data.diff_content`，不自行书写。说明覆盖的批次、
    Badcase ID、尚未分析的数量和回归风险。
-4. 按 `[S4]` 展示最终 Diff，声明“尚未保存”，询问用户是否确认创建一个新提示词草稿；
-   此时不得调用写入 MCP。
+4. 完整读取 [edit-skeleton-workflow.md](edit-skeleton-workflow.md) 的“提案”和“输出硬校验”，按其
+   固定模板及 `[S4]` 展示最终提案；「合理性判断」写明覆盖批次、Badcase ID、未分析数量和回归
+   风险。模板外不添加文字，此时不得调用写入 MCP。
 
 ## 确认创建后
 

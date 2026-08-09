@@ -58,3 +58,6 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 `INITIALIZE` 还必须满足：`base_prompt_version_id=0`，先完成规则组查重，再生成完整正文并调用上述校验；只有取得非零 `data.diff_record_id` 才能展示提案，确认后 `[S5]` 只传该 ID。
 
 紧邻上一轮已经展示提案时，“确认”“同意”“保存”“创建草稿”均表示确认该唯一提案；不得要求用户复述固定确认句。按 `[S5]` 传该提案同次 S3 返回的非零 `diff_record_id` 和本轮最新 `promptVersionId`，不得传 `prompt_content`。
+
+所有 workflow 的提案必须逐项、按序使用该 workflow 指定的完整模板，并执行 `[S4]` 输出协议；
+模板前后不得添加文字，禁止省略字段、输出占位符或改写服务端 Diff。
