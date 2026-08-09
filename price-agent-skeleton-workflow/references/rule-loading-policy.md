@@ -7,22 +7,31 @@
 
 ## 查询顺序
 
-1. 从当前业务上下文、Agent 详情或 Badcase 样本取得真实类目；无法取得时停止，不猜测。
-2. 仅调用当前 MCP 清单中实际存在的类目规则工具确定作用域。
-3. 初始化必须加载母子品牌关系 Skill 和材质关系 Skill，并调用各自文档规定的 MCP；工具不可用、
+1. 初始化先调用
+   `tool_query_category_ids(rule_group_id=上下文.ruleGroupId, agent_id=上下文.agentId, operator=上下文.operator)`。
+   要求 `base_resp.resp_code=1` 且 `data.category_ids` 非空；只使用该去重列表，禁止从历史、名称、
+   提示词或模型记忆补类目 ID。响应中的 `rule_group_id` 与当前上下文不一致时停止。
+2. 遍历全部 `data.category_ids`，逐个调用
+   `radar_query_price_rule(categoryId=<当前 categoryId>)`；不得漏查、合并 ID 或只查第一项。每次均
+   要求业务成功、`isExist=true` 且 `data.labelCateRule` 完整。记录每个 ID 对应的
+   `cateName`、`cateNameTree`、`belongBusiness` 和 `minCateId`，作为本轮唯一类目作用域。
+3. Badcase 按目标 workflow 的真实样本类目查询规则；不得用空提示词或模型猜测类目。
+4. 初始化必须加载母子品牌关系 Skill 和材质关系 Skill，并调用各自文档规定的 MCP；工具不可用、
    调用失败或响应无法解析时停止，禁止继续生成映射或用模型知识兜底。
 
 ### 统一作用域过滤
 
-品牌和材质响应都按当前类目规则的 `belongBusiness`、`minCateId`、`cateName`、`cateNameTree`
-逐项过滤：响应中已提供的字段必须与当前作用域一致；任一已提供字段冲突即删除。多类目时分别
-过滤后取并集并保留来源，不得扩大成“电商全站”。结构化过滤后再用常识删除明显跨行业、低相关
-或不确定项；常识只能删除，不能新增、合并、改名或补别名。
+品牌和材质主要按第二步规则响应中的 `cateName` 过滤：关系的 `cateName` 必须与至少一个当前
+`labelCateRule.cateName` 精确一致，才形成正向命中；缺失或不一致即不内嵌。`cateNameTree` 用于
+确认完整路径，`minCateId` 和 `belongBusiness` 用于辅助校验；任一已提供字段与命中的类目规则
+冲突即删除，不能靠其他字段或常识放行。多类目分别过滤后取并集并记录命中的 categoryId/cateName，
+不得扩大成“电商全站”。最后用常识进一步删除明显跨行业、低相关或不确定项；常识只能删除，
+不能恢复未命中项，也不能新增、合并、改名或补别名。
 
 ### 类目规则
 
-`radar_query_price_rule` 支持 `categoryId`、`categoryName`、`itemId`、`poolId`。有商品 ID 时
-优先 `itemId`；已知精确类目时用 ID 或名称；不要传互相冲突的条件。
+初始化固定使用 `tool_query_category_ids` 返回的每个 `categoryId` 调 `radar_query_price_rule`。
+Badcase 有商品 ID 时可按目标 workflow 使用 `itemId`；不要传互相冲突的条件。
 
 类目定位条件来自当前业务上下文、Agent 详情，或 Badcase/验证任务返回的真实
 商品与类目字段。空提示词不是类目来源。
@@ -31,7 +40,11 @@
 
 - 作用域：`belongBusiness`、`minCateId`、`cateName`、`cateNameTree`；
 - 规则：`searchMethod`、`ruleTableInfo.ruleTableInfo[]` 中的 `compareItem`、`infoSource`、
-  `compareLogic`。
+  `compareLogic`，以及 `specialRuleContent.ruleContent`。
+
+`specialRuleContent.ruleContent` 非空时，必须逐条保留其可执行语义及后续项目符号中的条件；允许
+删除解释、重复和非必要示例，但不得概括成“按特殊规则处理”。明确点名或语义唯一归属已有比价项
+的写入该项，其余写入总原则；不得生成新比价项。
 
 要求 `result=1`、业务响应成功、`isExist=true`、作用域和规则表非空。
 
@@ -54,9 +67,9 @@
 给出的母品牌和子品牌关系加入，不查询关系库复核，也不受 100 组上限限制。新增后更新标题中的
 真实适用范围；不得为了把总数降回 100 而删除原有关系。
 
-生成后必须按上述字段和常识二次审计。例如作用域仅为美妆、美妆工具、香水时，只保留
-明显经营化妆品、个护或香水且较常见的品牌组；食品、酒水、家电、数码、汽车、服饰、家纺、母婴、
-医药等跨行业组，以及无法确认主营范围的品牌组，全部删除。
+生成后必须按上述字段和常识二次审计。例如唯一类目为珠宝时，只保留已正向命中珠宝类目且主营
+珠宝、贵金属或首饰的品牌组；食品、酒水、家电、数码、汽车、服饰、家纺、母婴、日化、美妆、
+医药、农业等关系全部删除，无法确认主营范围的也删除。
 
 ### 同款材质
 
@@ -66,8 +79,8 @@
 初始化必须加载材质关系 Skill，并调用其文档规定的 MCP；若当前实际方法为
 `radar_query_material_relation(keyword:string)`，则传 `keyword=""`，再按以下顺序过滤：
 
-先执行“统一作用域过滤”；全部作用域字段缺失时，再按材质名称和用途做常识过滤：只保留明显
-相关项，不相关或不确定项省略。
+先执行“统一作用域过滤”；缺少正向类目命中时不内嵌。命中后再按材质名称和用途做常识过滤，
+只保留当前类目直接使用的材料，不相关或不确定项省略。
 
 初始化最多保留 **50 个材质组**，一个“主材质 + 子项集合”算一组；不足 50 组不得用弱相关
 材质补齐。超过时依次优先：类目精确匹配、业务线精确匹配、当前类目的比价项明确涉及、材质
@@ -83,7 +96,7 @@
 
 | 流程 | 类目规则 | 品牌 | 材质 |
 |---|---|---|---|
-| 初始化 | 从真实上下文取得类目后逐个查询 | 必须加载关系 Skill、调用 MCP 并过滤 | 必须加载关系 Skill、调用 MCP 并过滤 |
+| 初始化 | `tool_query_category_ids` 后逐 ID 查询 | 必须加载关系 Skill、主要按 `cateName` 过滤 | 必须加载关系 Skill、主要按 `cateName` 过滤 |
 | 修改 | 仅非精确修改时按需查询 | 仅非精确修改且工具存在时查询 | 仅非精确修改且工具存在时查询 |
 | Badcase | 按样本商品或类目查询 | 涉及品牌才按商品品牌查 | 涉及材质才全量查后过滤 |
 

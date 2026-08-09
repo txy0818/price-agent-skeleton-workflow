@@ -19,7 +19,8 @@
    - 返回非空 `data.prompt_version`：告知其 `version_name` 和 `prompt_version_id` 后停止，不加载规则、不生成或写入。
    - 明确不存在：继续。
    - 调用失败：按只读规则重试一次，仍失败则停止。
-4. 按 `[S2]` 加载全部关联类目规则及过滤后的品牌、材质关系，保留全部生效比价项。候选映射必须
+4. 按 `[S2]` 先用 `tool_query_category_ids` 取得全部 CategoryIds，再逐 ID 查询规则，并加载过滤后的
+   品牌、材质关系，保留全部生效比价项。候选映射必须
    是本轮关系工具返回集合的子集；母子品牌 100 组、材质 50 组只是上限，不足时保持实际数量，
    禁止补齐、编造、跨行业拼接或复制示例。
 5. 读取 [rule-transformation-guide.md](rule-transformation-guide.md)，严格按 `skeleton-format.md` 生成并自检完整正文，不得改用其他结构或把示例当业务事实。
