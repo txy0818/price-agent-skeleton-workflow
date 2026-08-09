@@ -13,8 +13,8 @@
 `existing_prompt_version_id` 和其他历史 Prompt ID 仅供展示，绝不能成为下一轮 `promptVersionId`。
 进入本策略时必须重新读取本轮值；不得从用户消息、历史记录、版本名称或工具结果推断、写回或切换。
 
-用户确认上一轮提案时，`prompt_version_id` 仍取本轮最新业务变量 `promptVersionId`；
-`diff_record_id` 取紧邻上一轮提案同次 S3 返回值。不得为匹配旧提案而沿用上一轮
+用户确认提案时，`prompt_version_id` 仍取本轮最新业务变量 `promptVersionId`；
+`diff_record_id` 取确认规则定位的目标提案同次 S3 返回值。不得为匹配旧提案而沿用上一轮
 `promptVersionId`。两者是否关联由 `tool_edit_prompt_skeleton` 根据 Diff 记录校验。
 
 
