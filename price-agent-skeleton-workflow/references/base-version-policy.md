@@ -4,8 +4,9 @@
 上一轮工具返回和模型记忆中的任何 Prompt ID；每轮进入本策略时必须重新读取，禁止沿用上一轮值。
 不得要求用户重复提供或从用户消息、历史记录、版本名称及查询结果推断或切换版本。
 
-本策略只约束 Prompt 版本 ID，不覆盖提案的 `diff_record_id`。用户确认上一轮提案时，
-`diff_record_id` 仍取该提案同次 S3 返回值，并按 `[S5]` 使用。
+用户确认上一轮提案时，`prompt_version_id` 仍取本轮最新业务变量 `promptVersionId`；
+`diff_record_id` 取紧邻上一轮提案同次 S3 返回值。不得为匹配旧提案而沿用上一轮
+`promptVersionId`。两者是否关联由 `tool_edit_prompt_skeleton` 根据 Diff 记录校验。
 
 
 ## 路由与校验

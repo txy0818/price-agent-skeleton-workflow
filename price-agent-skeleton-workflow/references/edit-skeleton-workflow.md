@@ -67,4 +67,5 @@
 
 ## 确认后
 
-执行 `[S5]` 的 `EDIT` 路径，`prompt_version_id=selectedPromptVersionId`；缺失或为 0 时停止，不得改用 `save_prompt_draft`。
+执行 `[S5]`，`prompt_version_id` 重新读取本轮最新业务变量 `promptVersionId`，不得沿用提案生成时
+记录的 `selectedPromptVersionId`；关联关系交给 `tool_edit_prompt_skeleton` 校验。

@@ -55,4 +55,7 @@
 
 ## 确认后
 
-执行 `[S5]` 的 `INITIALIZE` 路径：`prompt_version_id=0`、`source_type=3`。服务端防重命中时返回现有 Prompt，不创建；创建成功后告知实际的 `new_prompt_version_id`、`new_prompt_name` 和 `version_no`，后续使用新 ID。
+执行 `[S5]`：`prompt_version_id` 重新读取本轮最新业务变量 `promptVersionId`，`source_type=3`，不得
+因提案生成时是初始化而强制改回 0。服务端校验本轮版本与 Diff 基础版本的关联关系；匹配且防重
+命中时返回现有 Prompt，不创建，创建成功后告知实际的 `new_prompt_version_id`、
+`new_prompt_name` 和 `version_no`，后续使用新 ID。

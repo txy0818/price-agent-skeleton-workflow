@@ -118,5 +118,6 @@
 ## 确认创建后
 
 只有最终整合结果存在提示词缺陷，且用户在看到最终 Diff 后明确确认，才执行 `[S5]` 的
-`EDIT` 路径，`prompt_version_id=selectedPromptVersionId`。
+`EDIT` 路径，`prompt_version_id=本轮最新业务变量 promptVersionId`，不得沿用提案生成时记录的
+`selectedPromptVersionId`。
 仅调用一次并创建一个新草稿，不为各批次分别创建草稿。本轮不再输出 CDN。

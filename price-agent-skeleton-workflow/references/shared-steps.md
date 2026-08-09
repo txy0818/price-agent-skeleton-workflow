@@ -108,18 +108,21 @@ Diff 由服务端依据基础版本计算并通过 `data.diff_content` 返回，
 
 ## S5 确认后写入草稿
 
-写入方式必须在查询基础版本后已经锁定，确认阶段不得重新选择。调用前执行硬校验：
+确认阶段重新读取本轮最新业务变量 `promptVersionId`，不得沿用生成提案时的上一轮版本 ID。
+`prompt_diff_record_id` 仍使用紧邻上一轮提案同次 `[S3]` 返回的非零 ID。
 
-| `writeMode` | 唯一允许的 MCP | 必传版本字段 |
-|---|---|---|
-| `INITIALIZE` | `tool_edit_prompt_skeleton` | `prompt_version_id=0` |
-| `EDIT` | `tool_edit_prompt_skeleton` | `prompt_version_id=selectedPromptVersionId>0` |
+写入只允许调用 `tool_edit_prompt_skeleton`。`prompt_version_id` 原样取本轮最新
+`promptVersionId`：数值为 0 时传 0，大于 0 时传该值；缺失或仍为模板占位符时停止。原提案的
+`writeMode` 只决定 `source_type`，不得用它把本轮版本改回提案生成时的版本。
 
-版本字段缺失、不符合 `writeMode` 或调用了其他写入 MCP 时，禁止调用写入接口。
+**初始化、修改和 Badcase 修复写入**：都只调用一次 `tool_edit_prompt_skeleton`，组合使用上一轮提案
+保留的 Diff ID 与本轮最新版本 ID：
+`tool_edit_prompt_skeleton(rule_group_id=当前业务上下文.ruleGroupId, prompt_version_id=当前业务上下文.promptVersionId, operator=当前业务上下文.operator, source_type=<INITIALIZE 传3；EDIT传2>, prompt_diff_record_id=<紧邻上一轮提案同次 S3 返回的 diff_record_id>)`。
 
-**初始化、修改和 Badcase 修复写入**：都只调用一次 `tool_edit_prompt_skeleton`，只传同次 `[S3]`
-返回的非零 Diff ID：
-`tool_edit_prompt_skeleton(rule_group_id=当前业务上下文.ruleGroupId, prompt_version_id=<INITIALIZE传0；EDIT传selectedPromptVersionId>, operator=当前业务上下文.operator, source_type=<INITIALIZE 传3；EDIT传2>, prompt_diff_record_id=<S3 返回的 diff_record_id>)`。
+不得在模型侧用上一轮版本替换本轮 `promptVersionId`，也不得因怀疑不匹配而重新校验或生成 Diff。
+服务端会用 Diff 记录保存的 `base_prompt_version_id` 校验本轮 `prompt_version_id`；返回
+“`prompt_version_id与修改建议的基础版本不一致`”时，据实告知当前页面版本已不再匹配该提案，
+不切换版本、不改传正文、不重试。
 
 不传 `prompt_content`：服务端一律以库中记录为准，传了也会被忽略。
 

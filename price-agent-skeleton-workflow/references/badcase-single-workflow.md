@@ -90,5 +90,6 @@
 ## 确认后
 
 只有提示词缺陷且用户明确确认，才执行 `[S5]` 的 `EDIT` 路径，
-`prompt_version_id=selectedPromptVersionId`。
+`prompt_version_id=本轮最新业务变量 promptVersionId`，不得沿用提案生成时记录的
+`selectedPromptVersionId`。
 本轮不再输出 CDN。
