@@ -15,6 +15,12 @@
 > “核心比价项”或先提交残缺原文。精确修改仅在基础正文足以定位并保留业务规则时才可跳过 `[S2]`；
 > 基础正文无法支撑完整重构时，本分支优先，必须执行 `[S2]`。
 
+> **残缺正文不是外部依赖错误**：`prompt_content` 为 `1`、`111` 或其他残缺内容时，禁止声称“未找到
+> 编辑/初始化流程配置”，禁止要求用户复制、补充或粘贴原骨架，也禁止提供“人工粘贴使用”的草稿。
+> 本文件就是 EDIT workflow；`promptVersionId>0` 时不得查找或依赖 INITIALIZE workflow。必须继续
+> 读取下方 references、执行 `[S2]`，并以真实 MCP 数据重构。只有某个必读 reference 实际读取失败
+> 时才停止，且只能报告该文件的准确路径和真实读取错误，不得用泛化的“配置缺失”代替。
+
 > **精确修改直达分支**：用户给出可唯一定位的增删改时，将其作为已授权修改目标。基础正文结构
 > 可用时不执行 `[S2]`，不调用关系、规则或验证任务 MCP 复核；若命中“格式重构硬分支”，则必须
 > 执行 `[S2]` 重构完整正文。单个母子品牌或材质关系的新增、删除、替换及成员调整均属于此分支。
@@ -32,6 +38,8 @@
 完整读取 [shared-steps.md](shared-steps.md)、[base-version-policy.md](base-version-policy.md) 和
 [skeleton-format.md](skeleton-format.md)；非精确修改还须读取
 [rule-loading-policy.md](rule-loading-policy.md)。随后按下列顺序执行，首条可见回复只能是提案或明确错误。
+`promptVersionId>0` 的本流程不读取 [initialize-skeleton-workflow.md](initialize-skeleton-workflow.md)。
+任一必读文件读取失败时，明确错误必须包含失败文件名和工具返回原因；禁止要求用户提供提示词正文。
 
 ## 查询与判断
 

@@ -42,6 +42,9 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 | 提示词写操作且 `promptVersionId>0`（包括无方向的优化/改善/修改提示词） | [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) |
 | 提示词写操作且 `promptVersionId` 缺失、为 0 或占位符（包括无方向的优化/改善/修改提示词） | [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md) |
 
+`promptVersionId>0` 命中 EDIT 后禁止再查找 INITIALIZE workflow；当前正文残缺不是切换流程或要求
+用户补正文的理由，必须由 EDIT 按其格式重构分支处理。
+
 ## 不可跳过
 
 选定 workflow 后完整读取该文件及其直接要求的 references，并严格按原顺序执行；只跳过 workflow
