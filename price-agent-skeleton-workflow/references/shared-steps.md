@@ -25,7 +25,9 @@
 调用校验前完成五项检查：
 
 1. 从格式规范完整复制 `# 输出格式` 固定块至第 8 条 `key_diff_point` 规则，不因长度或类目裁剪。
-2. 候选正文已完整遵守 [rule-transformation-guide.md](rule-transformation-guide.md) 的转换步骤。
+2. 候选正文已完整遵守 [rule-transformation-guide.md](rule-transformation-guide.md)；适用类目表、
+   Step0、比价项标题和 `extracted` key 与本轮 `ruleTableInfo[].compareItem` 数量、名称、顺序完全一致，
+   且每行使用真实 `cateNameTree` 路径。任一不一致不得调用 S3。
 3. JSON 围栏后保留 `字段规则：` 和完整 8 条规则：`category`、具体 `confidence`、缺失值、三种
    `source`、布尔 `match`、多来源拼接、多部位材质、`key_diff_point`。
 4. 修改完成后丢弃母子品牌旧序号，按当前行顺序把整个映射表重写为 `1..N`；任意相邻两项必须
@@ -44,8 +46,10 @@
 - `resp_code=1 && data.valid=true && data.diff_record_id>0`：成功，锁定本次请求传入的完整
   `prompt_content`，并保留同次响应的 `diff_record_id`、`diff_content`。后续展示继续引用这个
   已提交变量，禁止重新生成。
-- `valid=false`：只按 `data.errors` 修正报错处，其他正文不变，最多重试 2 次；空 Diff/ID=0
-  只是本次未形成提案，不得提前停止或展示中间错误。
+- `resp_code=1 && data.valid=true && data.diff_record_id<=0`：立即异常结束，只回复
+  “提示词校验未生成有效修改建议（diff_record_id=0），无法形成提案。”禁止重试、提案、确认、
+  写入或展开全文。
+- `valid=false`：只按 `data.errors` 修正报错处，其他正文不变，最多重试 2 次。
 - 其他情况或重试后仍失败：只返回最终错误，不展示提案、不写入、不请求用户授权后再修复。
 
 Diff 只取服务端 `data.diff_content`，禁止自行书写。校验调用会落 Diff 记录，只能首次及按 errors
@@ -65,6 +69,24 @@ Diff 只取服务端 `data.diff_content`，禁止自行书写。校验调用会�
   必须是同一字符串对象；展示完成前不得覆盖、拼接或改写。
 
 提案统一展示“修改建议 ID（diff_id）”、标注“尚未保存”并以模板确认话术结尾。
+
+### 展开完整提示词
+
+用户紧邻有效提案回复“展开完整提示词”“查看完整提示词”或等价表达时，只执行本分支：上一条必须
+来自真实同次 S3，且 `valid=true`、`diff_record_id>0`、锁定的 `prompt_content` 非空；否则只返回
+“上一条不是可展开的有效提示词提案，请重新发起提示词修改。”
+
+满足条件时，不调用 MCP、不重新查询、不重新生成、不解释，只逐字符输出锁定的同一个
+`prompt_content`。使用四反引号 `text` 围栏，确保正文内部三反引号保持原样：
+
+`````markdown
+````text
+<逐字符复制同次 S3 已锁定的 prompt_content>
+````
+`````
+
+展开只用于查看，不构成确认。由于确认只接受紧邻提案的用户消息，展开后原提案不能再直接确认；
+用户随后要求写入时须重新生成提案。
 
 ## S5 确认后写入草稿
 
