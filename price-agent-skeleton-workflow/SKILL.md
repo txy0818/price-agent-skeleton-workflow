@@ -7,7 +7,8 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 
 ## 入口边界
 
-- 本轮 `promptVersionId` 是唯一版本上下文；历史及工具返回的 Prompt ID 不得替换它。具体查询和
+- 进入 Skill 时立即重新读取本轮业务上下文的 `promptVersionId` 并覆盖上一轮值；该值是唯一版本
+  上下文，历史及工具返回的 Prompt ID 不得替换它。具体查询和
   确认取值统一按 [base-version-policy.md](references/base-version-policy.md) 与
   [shared-steps.md](references/shared-steps.md) 执行。
 - 用户指定最新、线上、归档、草稿、ID、名称或版本时，执行
@@ -17,7 +18,8 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 
 ## 识别操作
 
-- “优化提示词”“改善提示词”“修改提示词”“完善提示词”“重写提示词”及对应“骨架”说法，即使
+- “新建提示词”“创建提示词”“初始化提示词”“优化提示词”“改善提示词”“修改提示词”
+  “完善提示词”“重写提示词”及对应“骨架”说法，即使
   没有说明方向或具体内容，也属于完整的提示词写操作；禁止追问，直接按本轮 `promptVersionId`
   进入下表 EDIT 或 INITIALIZE。
 - 当前页面仅出现“新建、修改、优化、改善、完善”等写操作词而未说对象，也按提示词写操作处理。
@@ -44,8 +46,8 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 | 仅查询当前提示词 | [base-version-policy.md](references/base-version-policy.md) |
 | 紧邻上一条有效提案后要求展开/查看/展示完整提示词 | 恢复该提案 workflow，只执行 [shared-steps.md](references/shared-steps.md) `[S4]` 的展开全文分支 |
 | 确认/同意/保存/创建草稿 | 直接执行 [shared-steps.md](references/shared-steps.md) `[S5]`；所有门禁和错误均由 `[S5]` 处理 |
-| 提示词写操作且 `promptVersionId>0`（包括无方向的优化/改善/修改提示词） | [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) |
-| 提示词写操作且 `promptVersionId` 缺失、为 0 或占位符（包括无方向的优化/改善/修改提示词） | [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md) |
+| 任意提示词写操作且本轮 `promptVersionId>0` | [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) |
+| 任意提示词写操作且本轮 `promptVersionId` 缺失、为 0 或占位符 | [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md) |
 
 `promptVersionId>0` 命中 EDIT 后禁止再查找 INITIALIZE workflow；当前正文残缺不是切换流程或要求
 用户补正文的理由，必须由 EDIT 按其格式重构分支处理。

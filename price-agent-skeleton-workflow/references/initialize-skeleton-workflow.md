@@ -12,7 +12,8 @@
 
 ## 查询与生成
 
-1. `promptVersionId>0` 时停止初始化；否则继续。
+1. 重新读取本轮业务上下文 `promptVersionId`；不得使用进入 workflow 前缓存的值、上一轮值或任何
+   工具返回的新版本 ID。该值大于 0 时停止并按入口重新路由 EDIT；否则锁定本轮初始化值为 0。
 2. `ruleGroupId` 缺失时执行 `[S1]`；`ruleGroupId` 与 `agentId` 至少一个大于 0。
 3. 生成前只调用一次：
    `tool_query_prompt_skeleton(rule_group_id=<ruleGroupId>, prompt_version_id=0, version_name="", query_online=false, query_latest=true, operator=<operator>)`
