@@ -29,6 +29,8 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 - “新增母子品牌：A→B”“删除材质映射：X→Y”等内容可唯一定位 → 精确提示词写操作。
 - “展开完整提示词”“查看完整提示词”“展示完整提示词” → 展开上一条有效提案锁定的候选全文，
   不是范围外请求，也不是重新查询页面当前提示词。
+- “确认”“同意”“保存”“创建草稿”等表达 → 提案决策操作；无论是否紧邻都不是范围外请求，
+  直接进入 [shared-steps.md](references/shared-steps.md) `[S5]`，入口不提前判断或拒绝。
 - 写操作即使没有方向也是完整请求，禁止追问方向或索取 Badcase；只按 `promptVersionId` 选路，
   用户使用“初始化”或“修改”等措辞不能改变版本路由。
 
@@ -41,7 +43,7 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 | 用户文字描述的 Badcase | [badcase-description-workflow.md](references/badcase-description-workflow.md) |
 | 仅查询当前提示词 | [base-version-policy.md](references/base-version-policy.md) |
 | 紧邻上一条有效提案后要求展开/查看/展示完整提示词 | 恢复该提案 workflow，只执行 [shared-steps.md](references/shared-steps.md) `[S4]` 的展开全文分支 |
-| 紧邻上一条助手提案后的确认 | 恢复该提案 workflow，只执行 [shared-steps.md](references/shared-steps.md) `[S5]` |
+| 确认/同意/保存/创建草稿 | 直接执行 [shared-steps.md](references/shared-steps.md) `[S5]`；所有门禁和错误均由 `[S5]` 处理 |
 | 提示词写操作且 `promptVersionId>0`（包括无方向的优化/改善/修改提示词） | [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) |
 | 提示词写操作且 `promptVersionId` 缺失、为 0 或占位符（包括无方向的优化/改善/修改提示词） | [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md) |
 
@@ -72,7 +74,6 @@ diff_record_id>0`，才存在有效提案。无本轮 S3 调用记录、`diff_re
 禁止改标题、字段、顺序、围栏或确认话术，禁止省略、概括、重写、补充提案内容，也禁止改用模型
 自行组织的格式；模板要求引用工具原文的部分必须逐字符复制。
 
-确认只绑定可见的上一条助手提案；中间出现其他用户消息后永久失效，显式 `diffId` 也不能恢复。
-可见上条含提案标题、非零 Diff ID 和确认话术时直接执行 `[S5]`，不得自行推测服务端消息序号；
-是否满足紧邻关系只认写入工具返回。所有提案和成功回复严格使用 workflow/`[S4]`/`[S5]` 模板，
+确认类表达统一直接进入 `[S5]`，入口不得提前判断、拒绝或回复固定错误；紧邻关系、Diff 和写入条件
+只按 `[S5]` 处理，不得自行推测服务端消息序号。所有提案和成功回复严格使用 workflow/`[S4]`/`[S5]` 模板，
 模板前后不加文字，不省略字段，不输出占位符，不改写服务端 Diff。
