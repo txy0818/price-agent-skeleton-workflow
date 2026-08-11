@@ -14,7 +14,9 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 - 用户指定最新、线上、归档、草稿、ID、名称或版本时，执行
   [base-version-policy.md](references/base-version-policy.md) 的查询对象门禁，不自行查询或切换。
 - 只使用真实上下文和 MCP 响应；禁止编造 ID、规则、映射、样本、正文、Diff 或工具结果。
-- 写入前必须有合规提案和有效确认；失败或超时不重试。
+- 写入前必须有合规提案和有效确认；工具调用失败、超时或响应不完整时不重试。只有
+  `tool_validate_prompt_skeleton` 明确返回 `valid=false` 时，才允许按 `[S3]` 根据 `data.errors`
+  修正候选后有限重试；这不是传输失败重试。
 
 ## 识别操作
 

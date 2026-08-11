@@ -5,7 +5,8 @@
 ## S1 补齐 ruleGroupId
 
 - 已有 `ruleGroupId`：跳过，不调用 `query_agent_detail`。
-- 缺失：调用 `query_agent_detail(agent_id=上下文.agentId, operator=上下文.operator)`；仅
+- 缺失且 `agentId<=0`、缺失或为占位符：立即停止并返回业务上下文参数错误，不调用工具。
+- 缺失且 `agentId>0`：调用 `query_agent_detail(agent_id=上下文.agentId, operator=上下文.operator)`；仅
   `base_resp.resp_code=1` 时读取 `data.card.rule_group_id`，仍为空则停止。
 
 ## S2 加载规则与映射
@@ -32,7 +33,8 @@
 2. INITIALIZE、格式重构及 EDIT 当前规则全量同步分支必须完整执行
    [rule-transformation-guide.md](rule-transformation-guide.md)，并读取 [enums.md](enums.md)。生成内部逐项
    转换账本，每行记录真实 `compareItem`、原始 `infoSource`、`expectedPriority`、候选优先级、清洗后的
-   特殊规则、真实 `compareLogic`、`expectedMatch` 和候选匹配条件。账本或指南任一硬校验不通过时禁止
+   特殊规则、原始 `compareLogic`、别名归一后的标准 `compareLogic`、`expectedMatch` 和候选匹配条件。
+   命中受控别名时，候选必须是标准枚举的完整展开，不得残留别名原文。账本或指南任一硬校验不通过时禁止
    S3；本文件不另行复述比价项转换算法。
 3. JSON 围栏后保留 `字段规则：` 和完整 8 条规则：`category`、具体 `confidence`、缺失值、三种
    `source`、布尔 `match`、多来源拼接、多部位材质、`key_diff_point`。
@@ -131,7 +133,8 @@ Diff 只取服务端 `data.diff_content`，禁止自行书写。校验调用会�
 
 - `prompt_diff_record_id`：紧邻提案同次 S3 的非零 ID。
 - `prompt_version_id`：重新读取本轮上下文 `promptVersionId`，禁止使用提案旧版本或上轮返回的
-  `new_prompt_version_id`；缺失/占位符停止。
+  `new_prompt_version_id`。INITIALIZE 中缺失、0 或占位符统一传 `0`；EDIT/Badcase 必须大于 0，
+  缺失、0 或占位符时停止。
 - `source_type`：INITIALIZE=3，EDIT/Badcase=2。原提案模式只决定此字段。
 - 不传 `prompt_content`；服务端以 Diff 记录正文为准。
 
