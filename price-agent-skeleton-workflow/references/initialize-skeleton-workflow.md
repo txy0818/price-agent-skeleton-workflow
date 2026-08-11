@@ -18,8 +18,13 @@
 3. 生成前只调用一次：
    `tool_query_prompt_skeleton(rule_group_id=<ruleGroupId>, prompt_version_id=0, version_name="", query_online=false, query_latest=true, operator=<operator>)`
    - 返回非空 `data.prompt_version`：告知其 `version_name` 和 `prompt_version_id` 后停止，不加载规则、不生成或写入。
-   - 明确不存在：继续。
-   - 调用失败、超时或响应不完整：立即停止，不重试。
+   - 返回 `base_resp.resp_code=21` 且去除首尾空白后的
+     `base_resp.resp_desc="未找到匹配的骨架版本"`（JSON 序列化展示为
+     `baseResp.respCode=21`、`baseResp.respDesc="未找到匹配的骨架版本"`）：这是“明确不存在”的唯一判定，表示当前规则组
+     尚无可复用骨架；不得作为工具失败展示给用户，继续执行第 4 步加载规则并生成初始化候选。
+   - `resp_code=21` 但 `resp_desc` 不是上述精确文本，或只有错误码/错误文案之一：不属于“明确
+     不存在”，按异常响应停止。
+   - 调用失败、超时、响应不完整或其他非成功响应：立即停止，不重试。
 4. 按 `[S2]` 先用 `tool_query_category_ids` 取得全部 CategoryIds，再逐 ID 查询规则，并加载过滤后的
    品牌、材质关系，保留全部生效比价项。候选映射必须
    是本轮关系工具返回集合的子集；母子品牌 100 组、材质 50 组只是上限，不足时保持实际数量，
