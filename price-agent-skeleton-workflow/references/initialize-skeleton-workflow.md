@@ -24,7 +24,10 @@
    品牌、材质关系，保留全部生效比价项。候选映射必须
    是本轮关系工具返回集合的子集；母子品牌 100 组、材质 50 组只是上限，不足时保持实际数量，
    禁止补齐、编造、跨行业拼接或复制示例。
-5. 读取 [rule-transformation-guide.md](rule-transformation-guide.md)，严格按 `skeleton-format.md` 生成并自检完整正文，不得改用其他结构或把示例当业务事实。
+5. 读取 [rule-transformation-guide.md](rule-transformation-guide.md)，为每个真实比价项生成
+   `expectedPriority` 和 `expectedMatch` 内部账本，再严格按 `skeleton-format.md` 生成并反向解析候选
+   全文逐项比对；来源顺序或匹配语义任一不一致时必须内部修正，不得改用其他结构、把示例当业务
+   事实或进入 `[S3]`。
 6. 用完整正文执行 `[S3]`，其中 `base_prompt_version_id=0`；初始化的查重响应和 Diff 字段按 `[S3]` 处理。
 
 ## 提案
