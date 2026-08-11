@@ -6,8 +6,8 @@
 
 完整读取 [shared-steps.md](shared-steps.md)、[base-version-policy.md](base-version-policy.md)、
 [skeleton-format.md](skeleton-format.md)、[rule-loading-policy.md](rule-loading-policy.md) 和
-[rule-transformation-guide.md](rule-transformation-guide.md)。[full-skeleton-example.md](full-skeleton-example.md)
-仅在格式仍不明确时读取相关片段，禁止复制业务数据。随后按下列顺序执行，首条可见回复只能是
+[rule-transformation-guide.md](rule-transformation-guide.md)。禁止读取 `full-skeleton-example.md` 或
+任何历史完整提示词作为生成范式；格式只能来自 `skeleton-format.md`。随后按下列顺序执行，首条可见回复只能是
 初始化提案、已存在结果或明确错误。
 
 ## 查询与生成
