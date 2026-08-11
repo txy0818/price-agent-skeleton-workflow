@@ -11,9 +11,11 @@
 ## S2 加载规则与映射
 
 严格执行 [rule-loading-policy.md](rule-loading-policy.md)。初始化固定先调用
-`tool_query_category_ids`，再用返回的每个 `categoryId` 调 `radar_query_price_rule`；随后加载
-母子品牌、材质关系 Skill 并调用各自 MCP，主要按规则响应的 `cateName` 过滤。进入 S3 前必须有
-类目 ID、逐类规则、品牌关系和材质关系的真实调用记录。修改和 Badcase 按目标范围加载。关键数据
+`tool_query_category_ids`，再用返回的每个 `categoryId` 调 `radar_query_price_rule`；修改和 Badcase
+按目标范围加载类目规则。汇总全部有效 `ruleTableInfo[].compareItem` 后执行映射硬门禁：精确包含
+“品牌”时必须调用品牌关系 MCP 并按规则响应的 `cateName` 过滤，不包含“品牌”时禁止调用；精确
+包含“材质”时必须加载材质关系 Skill 并调用其 MCP，不包含“材质”时禁止调用。进入 S3 前必须有
+类目 ID、逐类规则，以及规则实际要求的品牌/材质关系调用记录；未要求的映射不得调用。关键数据
 缺失即停止；映射只能筛选工具返回项。用户精确增删改按目标 workflow 的直达例外执行。
 
 ## S3 生成并校验完整提示词
@@ -49,10 +51,10 @@
 `rule_group_id`、`agent_id` 至少一个大于 0；EDIT 的 `selectedPromptVersionId>0`。初始化先处理
 `data.prompt_exists`：为 true 时返回 `existing_prompt_version_id/name` 后停止；为 false 才继续。
 
-- `resp_code=1 && data.valid=true && data.diff_record_id>0`：成功，锁定本次请求传入的完整
+- `base_resp.resp_code=1 && data.valid=true && data.diff_record_id>0`：成功，锁定本次请求传入的完整
   `prompt_content`，并保留同次响应的 `diff_record_id`、`diff_content`。后续展示继续引用这个
   已提交变量，禁止重新生成。
-- `resp_code=1 && data.valid=true && data.diff_record_id<=0`：立即异常结束，只回复
+- `base_resp.resp_code=1 && data.valid=true && data.diff_record_id<=0`：立即异常结束，只回复
   “提示词校验未生成有效修改建议（diff_record_id=0），无法形成提案。”禁止重试、提案、确认、
   写入或展开全文。
 - `valid=false`：只按 `data.errors` 修正报错处，其他正文不变，最多重试 2 次。
