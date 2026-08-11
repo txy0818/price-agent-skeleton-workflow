@@ -1,17 +1,21 @@
 # Badcase 统一处理流程
 
-本文件是单条、整任务和用户描述 Badcase 的统一分析内核。三个入口必须按 `[B0]`～`[B8]` 顺序
-执行，不得复制后改写步骤、跳步或自行增加归因类型。入口文件只负责取得真实输入、特有门禁、分页
-和固定输出；归因定义唯一来自 [badcase-attribution-policy.md](badcase-attribution-policy.md)，提示词
-校验与写入唯一来自 [shared-steps.md](shared-steps.md)。
+本文件统一负责 Badcase 的输入查询、基础版本锁、规则/映射、CDN、证据、归因和处理动作。
+入口 workflow 只负责锁定模式、维护该模式的必要状态并使用固定输出模板。锁定后必须连续执行
+`[B0]`～`[B8]`，不得跳步、重复执行或在入口复制共同查询与处理逻辑。归因定义唯一来自
+[badcase-attribution-policy.md](badcase-attribution-policy.md)，提示词校验与写入唯一来自
+[shared-steps.md](shared-steps.md)。
 
-## 入口适配
+## 入口模式锁
 
-| 模式 | 样本来源 | 基础提示词 | 特有约束 | 输出适配器 |
-|---|---|---|---|---|
-| `SINGLE` | `tool_query_validation_result` 精确返回一条 `is_correct=0` 的结果 | 同次响应的 `data.prompt_version` | 可将 Kconf 返回的 `raw_llm_response` 作为补充证据；CDN 由 `tool_query_cdn_report` 按同一任务查询 | 单条固定模板 |
-| `TASK` | 同一任务分页返回的 `results[]`，每页最多 10 条且均为 `is_correct=0` | 每页同一 `data.prompt_version` | 必须通过续批锁、按 Case 去重、按类目去重查询规则；不使用 `raw_llm_response`；CDN 由 `tool_query_cdn_report` 按同一任务查询 | 阶段统计或最终整合固定模板 |
-| `DESCRIPTION` | 用户本轮提供的商品事实、标签和模型过程 | 页面当前 `promptVersionId` 精确查询结果 | 不得编造 Task、Case、验证集、类目或 CDN；没有可信类目/证据时停止补证 | 初步分析固定模板 |
+入口 workflow 必须在进入本文件前显式锁定且只锁定一个模式：
+
+- `badcase-single-workflow.md` 锁定 `badcaseMode=SINGLE`；
+- `badcase-task-workflow.md` 锁定 `badcaseMode=TASK`；
+- `badcase-description-workflow.md` 锁定 `badcaseMode=DESCRIPTION`。
+
+本文件只按已锁定模式执行对应查询分支，不得根据样本数量、字段是否存在或用户文字重新推断、选择
+或切换模式。最终输出格式仍只由入口 workflow 定义。
 
 ## 统一内部分析记录
 
@@ -36,16 +40,51 @@
 任何必要字段缺失都保留为空并进入 `[B5]` 判断，不得用标题推类目、用模型抽取补商品事实、用当前规则
 伪装验证时规则快照，或用另一版本提示词替换基础提示词。
 
-## B0 锁定入口模式
+## B0 校验入口模式锁
 
-只选择 `SINGLE`、`TASK`、`DESCRIPTION` 之一，并完整执行对应入口文件的参数和响应门禁。一次分析中
-不得切换模式；整任务继续分析和整合必须继续使用原 `TASK` 模式及续批锁。
+读取入口已锁定的 `badcaseMode`，只接受 `SINGLE`、`TASK`、`DESCRIPTION` 之一。模式缺失、值不合法
+或与当前入口文件不一致时立即停止，禁止自行补值或改选其他模式。一次分析中不得切换模式；整任务
+继续分析和整合必须保持 `badcaseMode=TASK` 并通过原续批锁。
 
-## B1 锁定上下文与基础版本
+## B1 查询输入并锁定基础版本
 
-锁定入口返回或精确查询得到的基础提示词 ID、正文、规则组、Operator 和必要任务标识。正文为空、
-ID 不合法或请求/响应 ID 不一致时立即停止。`TASK` 额外校验不可变续批锁；`DESCRIPTION` 不得从用户
-自由文本接受 Prompt ID 替换页面上下文。
+仅当业务上下文缺少 `ruleGroupId` 时执行 `[S1]`；已有则跳过。随后只执行当前 `badcaseMode` 对应分支：
+
+- `SINGLE`：只从本轮业务上下文取得 `validationTaskId`、`validationCaseId`、`promptVersionId` 和
+  `operator`，三个 ID 都必须大于 0。只使用以下四个字段调用：
+
+  `tool_query_validation_result(validation_task_id=上下文.validationTaskId, validation_case_id=上下文.validationCaseId, prompt_version_id=上下文.promptVersionId, operator=上下文.operator)`
+
+  禁止附加 `label_filter` 或 `page`。只接受 `base_resp.resp_code=1 && result=1`，并要求响应任务 ID、
+  Prompt ID、唯一一条结果的 Case ID 分别与请求一致，且 `is_correct=0`。
+- `TASK`：只从本轮业务上下文取得 `validationTaskId`、`promptVersionId` 和 `operator`，前两个 ID
+  必须大于 0。首批页码为 1，继续分析页码为上一批 `page_no+1`；每页固定 10 条。只使用以下字段调用：
+
+  `tool_query_validation_result(validation_task_id=上下文.validationTaskId, label_filter=3, prompt_version_id=上下文.promptVersionId, operator=上下文.operator, page={page_no:<当前批次页码>,page_size:10})`
+
+  禁止传 `validation_case_id`。只接受 `base_resp.resp_code=1 && result=1`，并要求响应任务 ID、Prompt ID
+  与请求一致，所有结果均为 `is_correct=0`；继续分析还必须通过入口维护的 `badcaseTaskLock`。
+- `DESCRIPTION`：只使用本轮业务上下文的 `promptVersionId`，要求大于 0；按
+  [base-version-policy.md](base-version-policy.md) 精确查询当前提示词，并要求响应 Prompt ID 与上下文
+  一致。左右商品事实、人工标签、模型结论、理由和模型过程只取用户本轮输入，缺失项保持为空；
+  禁止从用户自由文本接受 Prompt ID 替换页面上下文。
+
+`SINGLE/TASK` 只按以下精确路径读取，禁止根据字段含义猜测路径：
+
+- 任务：`data.validation_task_id`、`data.dataset_id`、`data.validation_summary_json`；
+- 基础提示词：`data.prompt_version.{prompt_version_id,rule_group_id,version_no,version_name,
+  version_status,prompt_content}`；
+- 样本：`data.results[].{validation_result_id,validation_case_id,category_id,source_item_id,
+  candidate_item_id,source_title,candidate_title,human_label,model_label,is_correct,reason,
+  analysis_process,radar_task_id,radar_task_url,source_item_json,candidate_item_json}`；
+- `TASK` 分页：`data.page.{page_no,page_size,total,has_more}`。
+
+`dataset_id` 和每条 `category_id` 必须大于 0；上下文 `ruleGroupId>0` 时，响应
+`data.prompt_version.rule_group_id` 必须与其一致。继续分析还要求响应 `dataset_id`、`rule_group_id`
+与 `badcaseTaskLock` 一致。响应没有 `agent_id`，不得声称本接口校验了 Agent。三种模式均要求
+`prompt_content` 非空；响应通过后统一锁定 `selectedPromptVersionId=上下文.promptVersionId`、
+`writeMode=EDIT`，该正文就是分析基础版本，不再查询其他提示词，也不得用响应 Prompt ID 覆盖上下文
+值。任何必需 ID、正文、规则组或请求/响应一致性校验失败时立即停止。
 
 ## B2 规范化样本
 
@@ -53,11 +92,19 @@ ID 不合法或请求/响应 ID 不一致时立即停止。`TASK` 额外校验�
 校验 `is_correct=0`；`DESCRIPTION` 必须保留用户没有提供的字段为空。先按 Case 去重再分析，同一
 Case 不得因重复分页被统计两次。
 
-## B3 加载规则与映射
+## B3 查询规则、必要映射与报告
 
-仅使用真实 `categoryId`，按 [rule-loading-policy.md](rule-loading-policy.md) 执行 `[S2]`：整任务先对
-本页类目去重再分别查询，单条只查该样本类目，用户描述没有可信类目时不得猜测。只加载规则实际
-涉及的必要映射，跨类目证据不得混用。
+- `SINGLE`：只使用 `data.results[0].category_id` 按 `[S2]` 查询该类目规则与规则实际需要的映射；
+  随后调用
+  `tool_query_cdn_report(validation_task_id=上下文.validationTaskId, prompt_version_id=上下文.promptVersionId, operator=上下文.operator)`，
+  只读取 `data.report_cdn_url` 和 `data.report_summary_json`。
+- `TASK`：提取本页 `data.results[].category_id`，去重后逐类目按 `[S2]` 查询规则与必要映射，禁止
+  跨类目混用；随后按同一任务和 Prompt ID 调用上述 `tool_query_cdn_report`。
+- `DESCRIPTION`：仅从本轮可信业务上下文或用户提供的可验证结构化字段取得 `categoryId`；存在时
+  按 `[S2]` 查询争议范围内的规则与必要映射，不存在时保持规则/映射为空并进入 `[B5]`；不查询 CDN。
+
+三种模式都禁止从标题、商品 JSON、图片、提示词或模型输出猜类目。规则/映射查询不得重复；CDN
+链接为空不阻断分析，报告摘要不能替代逐条验证结果。
 
 ## B4 建立逐项证据表
 
