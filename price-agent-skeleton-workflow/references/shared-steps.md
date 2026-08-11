@@ -29,16 +29,11 @@
 调用校验前完成以下全部检查：
 
 1. 从格式规范完整复制 `# 输出格式` 固定块至第 8 条 `key_diff_point` 规则，不因长度或类目裁剪。
-2. INITIALIZE、格式重构及 EDIT 当前规则全量同步分支的候选正文已完整遵守
-   [rule-transformation-guide.md](rule-transformation-guide.md)；适用类目表、
-   Step0、比价项标题和 `extracted` key 与本轮 `ruleTableInfo[].compareItem` 数量、名称、顺序完全一致，
-   且每行使用真实 `cateNameTree` 路径。内部规范句不得出现在正文；每个比价项的优先级只含允许来源，
-   适用范围只出现在顶部表格，任一比价项章节出现重复的 `- **适用类目**` 时不得调用 S3；
-   全部过滤为空时使用固定综合判断兜底；匹配只含本轮特殊规则和真实 `compareLogic` 兜底。任一不一致
-   不得调用 S3。生成内部逐项转换账本，每行至少包含真实 `compareItem`、原始 `infoSource`、稳定投影
-   后的 `expectedPriority`、候选优先级、清洗后的全部特殊规则、真实 `compareLogic`、`expectedMatch`
-   和候选全部匹配条件；候选优先级必须与 `expectedPriority` 完全一致，候选匹配条件必须与
-   `expectedMatch` 逐项一致。账本不完整、来源被重排、出现新增来源或任一匹配语义无法追溯时禁止 S3。
+2. INITIALIZE、格式重构及 EDIT 当前规则全量同步分支必须完整执行
+   [rule-transformation-guide.md](rule-transformation-guide.md)，并读取 [enums.md](enums.md)。生成内部逐项
+   转换账本，每行记录真实 `compareItem`、原始 `infoSource`、`expectedPriority`、候选优先级、清洗后的
+   特殊规则、真实 `compareLogic`、`expectedMatch` 和候选匹配条件。账本或指南任一硬校验不通过时禁止
+   S3；本文件不另行复述比价项转换算法。
 3. JSON 围栏后保留 `字段规则：` 和完整 8 条规则：`category`、具体 `confidence`、缺失值、三种
    `source`、布尔 `match`、多来源拼接、多部位材质、`key_diff_point`。
 4. 生成候选全文时主动修复连续编号，不得只检查或原样保留断号：对母子品牌映射表和比价项序列
@@ -49,8 +44,8 @@
 5. INITIALIZE、格式重构及 EDIT 当前规则全量同步分支必须通过映射门禁：`compareItem` 有“品牌”时
    必须有本轮品牌关系查询与过滤记录；过滤后非空必须输出映射表，
    为空必须省略该表并说明“本轮品牌关系查询后无符合当前类目的母子品牌映射”；无“品牌”时必须不存在该表；
-   品牌映射必须不超过 100 组，每组均来自本轮响应且经当前类目与模型常识确认直接相关；跨行业、
-   不确定、超过上限或近似全量复制时不得调用 S3。有“材质”时，对应比价项章节必须存在固定行
+   品牌映射必须通过 [rule-transformation-guide.md](rule-transformation-guide.md)“品牌”小节的完整
+   过滤、数量、格式和连续编号门禁；任一不符不得调用 S3。有“材质”时，对应比价项章节必须存在固定行
    `- **材质对照表**：见下方附录。`，且下方必须存在材质对照表附录，二者缺一不得调用 S3；过滤后
    有有效组则输出真实组，为 0 组则只输出固定说明“本轮材质关系查询及当前类目过滤后无可输出的
    材质对照组。”，不得补齐或阻断；无“材质”
