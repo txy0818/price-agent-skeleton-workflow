@@ -4,7 +4,7 @@
 
 ## 执行门禁
 
-取得任务 ID、Case ID 和页面当前 Prompt ID 后，输出前必须实际完成：读取并按顺序执行 [badcase-processing-workflow.md](badcase-processing-workflow.md) `[B0]`～`[B8]`，以及其要求的共享步骤、规则和归因规范；查询指定验证结果和 CDN；从任务结果锁定基础提示词；执行 `[S2]`；逐项核对商品快照与模型 `extracted`；完成八类归因。不得只报告“已加载流程”或预告下一步。
+取得任务 ID、Case ID 和页面当前 Prompt ID 后，输出前必须实际完成：读取并按顺序执行 [badcase-processing-workflow.md](badcase-processing-workflow.md) `[B0]`～`[B8]`，以及其要求的共享步骤、规则和归因规范；查询指定验证结果和同任务 CDN 报告；从任务结果锁定基础提示词；执行 `[S2]`；逐项核对商品快照与模型 `extracted`；完成八类归因。不得只报告“已加载流程”或预告下一步。
 
 - 缺少任务 ID 或 Case ID：只询问实际缺失的标识。`promptVersionId<=0` 时不向用户索取 ID，
   只提示先在页面左侧选择本次验证任务使用的提示词后重试。
@@ -47,11 +47,11 @@
    禁止从标题、商品 JSON、提示词或模型输出猜类目。按 `human_label`、`model_label` 和
    `analysis_process` 中的逐项抽取结果定位嫌疑项；`raw_llm_response` 非空时仅补充核对其
    顶层 `result/reason/confidence/key_diff_point` 及解析前原文。依照
-   [rule-loading-policy.md](rule-loading-policy.md) 的「Badcase 方向」定位嫌疑项。另调用
-   `tool_query_cdn_report(validation_task_id=上下文.validationTaskId, prompt_version_id=上下文.promptVersionId, operator=上下文.operator)`。
-   `base_resp.resp_code=1 && result=1` 时只读取 `data.report_cdn_url` 和
-   `data.report_summary_json`；“验证报告不存在”视为无 CDN，继续分析并使用无链接输出分支；
-   其他失败如实报告并停止。CDN 摘要不能替代逐条验证结果。
+   [rule-loading-policy.md](rule-loading-policy.md) 的「Badcase 方向」定位嫌疑项。随后调用
+   `tool_query_cdn_report(validation_task_id=上下文.validationTaskId, prompt_version_id=上下文.promptVersionId, operator=上下文.operator)`；
+   只接受 `base_resp.resp_code=1 && result=1`，并只从 `data.report_cdn_url`、
+   `data.report_summary_json` 读取报告信息。链接为空视为无 CDN，继续分析并使用无链接输出分支；
+   报告摘要不能替代逐条验证结果。
 5. 先用 `source_item_json` 与 `candidate_item_json` 核对商品事实，再用
    `analysis_process` 各比价项的
    `left`/`right` 的 `value`、`source` 看模型实际抽到了什么，两边对比得出结论；
@@ -157,8 +157,8 @@
    标题前文字或模板后补充。
 2. 必须保留所选模板的全部字段、三级标题、表头和顺序；禁止增加“当前验证任务整体情况”、
    耗时、Token、“如果需要下一步操作”或修改方向选项。
-3. 输出前必须存在本轮真实 `tool_query_validation_result`、目标类目的规则/必要映射查询以及
-   `tool_query_cdn_report` 调用记录；缺任一记录只返回该步骤真实错误，禁止输出分析结论。
+3. 输出前必须存在本轮真实 `tool_query_validation_result`、`tool_query_cdn_report` 及目标类目的
+   规则/必要映射查询；缺任一必需记录只返回该步骤真实错误，禁止输出分析结论。
 4. 类型只能是八类之一，并与“是否修改提示词”一致：只有“提示词规则缺陷”写“是”并使用缺陷
    模板；其他七类一律写“否”并使用非缺陷模板。
 5. 归因前必须逐字对照 `data.prompt_version.prompt_content` 的目标规则与
@@ -167,7 +167,8 @@
 6. 非缺陷模板不得出现 Diff、S3 成功话术、确认话术或要求用户选择修改方向；缺陷模板必须展示
    同次 `tool_validate_prompt_skeleton` 的非零 `data.diff_record_id`，并原样输出同次
    `data.diff_content`，否则禁止输出缺陷模板。
-7. CDN 行必须是最后一行；有链接只用真实 `data.report_cdn_url`，无链接使用固定无链接文本。
+7. CDN 行必须是最后一行；有链接只用真实 `tool_query_cdn_report.data.report_cdn_url`，无链接使用
+   固定无链接文本。
 
 ## 确认后
 

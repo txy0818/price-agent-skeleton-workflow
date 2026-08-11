@@ -4,7 +4,7 @@
 
 ## 执行门禁
 
-取得任务 ID 和页面当前 Prompt ID 后，输出阶段分析前必须实际完成：读取并按顺序执行 [badcase-processing-workflow.md](badcase-processing-workflow.md) `[B0]`～`[B8]`，以及其要求的共享步骤、规则和归因规范；查询本批最多 10 条验证结果和 CDN；从任务结果锁定基础提示词；按类目执行 `[S2]`；逐条核对商品快照与模型 `extracted`；完成去重、八类归因和本批统计。不得只报告“已加载流程”、预告下一步或要求用户再次回复才开始分析。
+取得任务 ID 和页面当前 Prompt ID 后，输出阶段分析前必须实际完成：读取并按顺序执行 [badcase-processing-workflow.md](badcase-processing-workflow.md) `[B0]`～`[B8]`，以及其要求的共享步骤、规则和归因规范；查询本批最多 10 条验证结果和同任务 CDN 报告；从任务结果锁定基础提示词；按类目执行 `[S2]`；逐条核对商品快照与模型 `extracted`；完成去重、八类归因和本批统计。不得只报告“已加载流程”、预告下一步或要求用户再次回复才开始分析。
 
 - 缺少任务 ID：只询问该标识。`promptVersionId<=0` 时不向用户索取 ID，只提示先在页面左侧
   选择本次验证任务使用的提示词后重试。
@@ -82,12 +82,11 @@
    比价项加载必要映射；禁止从标题、商品 JSON、提示词或模型输出猜类目，禁止跨类目混用。
    逐条按
    `human_label`、`model_label` 和 `analysis_process` 中的逐项抽取结果定位嫌疑项。依照
-   [rule-loading-policy.md](rule-loading-policy.md) 的「Badcase 方向」定位
-   嫌疑项。另调用
-   `tool_query_cdn_report(validation_task_id=上下文.validationTaskId, prompt_version_id=上下文.promptVersionId, operator=上下文.operator)`。
-   `base_resp.resp_code=1 && result=1` 时只读取 `data.report_cdn_url` 和
-   `data.report_summary_json`；“验证报告不存在”视为无 CDN，继续分析并使用无链接输出分支；
-   其他失败如实报告并停止。CDN 摘要不能替代逐条验证结果。
+   [rule-loading-policy.md](rule-loading-policy.md) 的「Badcase 方向」定位嫌疑项。随后调用
+   `tool_query_cdn_report(validation_task_id=上下文.validationTaskId, prompt_version_id=上下文.promptVersionId, operator=上下文.operator)`；
+   只接受 `base_resp.resp_code=1 && result=1`，并只从 `data.report_cdn_url`、
+   `data.report_summary_json` 读取报告信息。链接为空视为无 CDN，继续分析并使用无链接输出分支；
+   报告摘要不能替代逐条验证结果。
 5. 逐条先用 `source_item_json` 与 `candidate_item_json` 核对商品事实，再用
    `analysis_process` 各比价项的
    `left`/`right` 的 `value`、`source` 看模型实际抽到了什么，两边对比得出结论；
@@ -163,8 +162,8 @@
 1. 第一行必须严格等于 `## 验证任务 Badcase 阶段分析`，模板前后不得添加文字。
 2. 必须保留模板全部字段、三级标题、表头和顺序；禁止输出任务概览、耗时、Token、自由发挥的
    下一步说明或模板中不存在的段落。
-3. 输出前必须存在本轮真实 `tool_query_validation_result`、本页去重后每个 `category_id` 对应的
-   规则/必要映射查询以及 `tool_query_cdn_report` 调用记录；缺任一记录只返回该步骤真实错误。
+3. 输出前必须存在本轮真实 `tool_query_validation_result`、`tool_query_cdn_report`，以及本页去重后
+   每个 `category_id` 对应的规则/必要映射查询；缺任一必需记录只返回该步骤真实错误。
 4. “续批锁”必须逐字段来自 `badcaseTaskLock`，并与本轮请求及响应一致；继续分析时必须存在上一批
    锁校验通过的记录，禁止只因用户说了“继续分析”就沿用历史 ID。
 5. 八类数量之和必须等于本批去重后的明细数；明细按 `validation_case_id` 去重；`total`、
@@ -172,7 +171,8 @@
 6. 阶段分析不得出现 Diff、`diff_id`、S3 成功话术、确认创建话术或写入操作；候选修改只能作为
    待整合结论。
 7. `分页状态` 和 `整合状态` 必须按模板给定条件各选择一个固定句式，不得保留条件占位符。
-8. CDN 行必须是最后一行；有链接只用真实 `data.report_cdn_url`，无链接使用固定无链接文本。
+8. CDN 行必须是最后一行；有链接只用真实 `tool_query_cdn_report.data.report_cdn_url`，无链接使用
+   固定无链接文本。
 
 ## 整合修改建议
 
@@ -190,7 +190,8 @@
    提示词并执行一次有效 `[S3]`；最终 Diff 和失败处理完全按 `[B7]`，不得自行书写或另造校验流程。
 4. 存在提示词规则缺陷时，完整读取 [edit-skeleton-workflow.md](edit-skeleton-workflow.md) 的“输出硬
    校验”，复用其 Diff 原样复制、非零 Diff ID 和确认话术门禁，但必须使用下方“提示词缺陷整合提案
-   模板”展示，保留 Task、Dataset、批次、Badcase、分析进度和 CDN。模板外不添加文字，此时不得
+   模板”展示，保留 Task、Dataset、批次、Badcase、分析进度和同任务最近一次 CDN 查询结果。
+   模板外不添加文字，此时不得
    调用写入 MCP。
 
 ### 提示词缺陷整合提案模板
@@ -252,8 +253,8 @@
    Diff ID 和确认话术的全部硬校验。不得使用无修改模板或普通 EDIT 提案模板。
 3. 两个分支都必须按 `validation_case_id` 去重，且任务 ID、验证集 ID、基础提示词 ID 完全一致；
    覆盖批次、Badcase ID、未分析数量和回归风险不得省略或猜测。
-4. 两个分支的 CDN 行都必须是最后一行；有链接只用真实 `data.report_cdn_url`，无链接使用固定无链接
-   文本，不得在 CDN 后添加确认或解释。
+4. 两个分支的 CDN 行都必须是最后一行；有链接只用同任务最近一次真实
+   `tool_query_cdn_report.data.report_cdn_url`，无链接使用固定无链接文本，不得在 CDN 后添加确认或解释。
 
 ## 确认创建后
 

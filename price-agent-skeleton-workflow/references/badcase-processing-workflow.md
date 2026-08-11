@@ -9,8 +9,8 @@
 
 | 模式 | 样本来源 | 基础提示词 | 特有约束 | 输出适配器 |
 |---|---|---|---|---|
-| `SINGLE` | `tool_query_validation_result` 精确返回一条 `is_correct=0` 的结果 | 同次响应的 `data.prompt_version` | 可将 Kconf 返回的 `raw_llm_response` 作为补充证据；必须查询 CDN | 单条固定模板 |
-| `TASK` | 同一任务分页返回的 `results[]`，每页最多 10 条且均为 `is_correct=0` | 每页同一 `data.prompt_version` | 必须通过续批锁、按 Case 去重、按类目去重查询规则；不使用 `raw_llm_response` | 阶段统计或最终整合固定模板 |
+| `SINGLE` | `tool_query_validation_result` 精确返回一条 `is_correct=0` 的结果 | 同次响应的 `data.prompt_version` | 可将 Kconf 返回的 `raw_llm_response` 作为补充证据；CDN 由 `tool_query_cdn_report` 按同一任务查询 | 单条固定模板 |
+| `TASK` | 同一任务分页返回的 `results[]`，每页最多 10 条且均为 `is_correct=0` | 每页同一 `data.prompt_version` | 必须通过续批锁、按 Case 去重、按类目去重查询规则；不使用 `raw_llm_response`；CDN 由 `tool_query_cdn_report` 按同一任务查询 | 阶段统计或最终整合固定模板 |
 | `DESCRIPTION` | 用户本轮提供的商品事实、标签和模型过程 | 页面当前 `promptVersionId` 精确查询结果 | 不得编造 Task、Case、验证集、类目或 CDN；没有可信类目/证据时停止补证 | 初步分析固定模板 |
 
 ## 统一内部分析记录
