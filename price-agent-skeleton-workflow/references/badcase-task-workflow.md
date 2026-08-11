@@ -52,7 +52,9 @@
 
 ## 查询与判断
 
-1. 重新读取本轮业务上下文，锁定 `badcaseMode=TASK`；首批清理旧任务锁，续批或整合先执行上方
+1. 从入口的 `badcaseRouteContext` 反校验 `validationCaseId<=0 && validationTaskId>0`，再重新读取
+   本轮业务上下文并锁定 `badcaseMode=TASK`；只要上下文 `validationCaseId>0` 就立即停止并重新路由
+   SINGLE，禁止因用户文字像整任务请求而继续。首批清理旧任务锁，续批或整合先执行上方
    `badcaseTaskLock` 校验，不得用本轮新值覆盖旧锁。
 2. 首批或“继续分析”按统一流程 `[B0]`～`[B3]` 完成入口校验、本页验证结果查询、基础版本锁定、
    Case 去重，以及本页类目去重后的规则、必要映射和 CDN 查询。所有 MCP 名称、参数和响应门禁只

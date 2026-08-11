@@ -40,7 +40,9 @@
 
 完整读取 [shared-steps.md](shared-steps.md)、[base-version-policy.md](base-version-policy.md) 和
 [skeleton-format.md](skeleton-format.md)；非精确修改还须读取
-[rule-loading-policy.md](rule-loading-policy.md)。随后按下列顺序执行，首条可见回复只能是提案或明确错误。
+[rule-loading-policy.md](rule-loading-policy.md) 与
+[rule-transformation-guide.md](rule-transformation-guide.md)。随后按下列顺序执行，首条可见回复只能是
+提案或明确错误。
 `promptVersionId>0` 的本流程不读取 [initialize-skeleton-workflow.md](initialize-skeleton-workflow.md)。
 任一必读文件读取失败时，明确错误必须包含失败文件名和工具返回原因；禁止要求用户提供提示词正文。
 

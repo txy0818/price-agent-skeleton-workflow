@@ -42,9 +42,11 @@
 
 ## B0 校验入口模式锁
 
-读取入口已锁定的 `badcaseMode`，只接受 `SINGLE`、`TASK`、`DESCRIPTION` 之一。模式缺失、值不合法
-或与当前入口文件不一致时立即停止，禁止自行补值或改选其他模式。一次分析中不得切换模式；整任务
-继续分析和整合必须保持 `badcaseMode=TASK` 并通过原续批锁。
+读取入口已锁定的 `badcaseMode`，只接受 `SINGLE`、`TASK`、`DESCRIPTION` 之一。`SINGLE/TASK` 还
+必须与入口建立的 `badcaseRouteContext` 一致：上下文 `validationCaseId>0` 只能是 `SINGLE`，否则
+上下文 `validationTaskId>0` 才能是 `TASK`。模式缺失、值不合法或不一致时立即停止并按入口重新
+路由；禁止从用户文字解析 ID、自行补值或继续错误模式。一次分析中不得切换模式；整任务继续分析和
+整合必须保持 `badcaseMode=TASK` 并通过原续批锁。
 
 ## B1 查询输入并锁定基础版本
 
