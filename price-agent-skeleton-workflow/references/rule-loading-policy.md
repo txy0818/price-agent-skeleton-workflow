@@ -151,7 +151,7 @@ Badcase 有商品 ID 时可按目标 workflow 使用 `itemId`；不要传互相�
 
 ## Badcase 方向
 
-解析 `raw_llm_response`（空时用 `analysis_process`）中的 `extracted`：
+以 `analysis_process` 的逐项抽取结果为归因输入；
 
 | 人工/模型 | 方向 | 关注 |
 |---|---|---|

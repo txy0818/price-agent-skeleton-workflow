@@ -4,9 +4,10 @@
 
 ## 执行门禁
 
-取得任务 ID 后，输出阶段分析前必须实际完成：读取 [shared-steps.md](shared-steps.md) 与 [rule-loading-policy.md](rule-loading-policy.md)；查询本批最多 10 条验证结果和 CDN；从任务结果锁定基础提示词；按类目执行 `[S2]`；逐条核对商品快照与模型 `extracted`；完成去重、五类归因和本批统计。不得只报告“已加载流程”、预告下一步或要求用户再次回复才开始分析。
+取得任务 ID 和页面当前 Prompt ID 后，输出阶段分析前必须实际完成：读取 [shared-steps.md](shared-steps.md) 与 [rule-loading-policy.md](rule-loading-policy.md)；查询本批最多 10 条验证结果和 CDN；从任务结果锁定基础提示词；按类目执行 `[S2]`；逐条核对商品快照与模型 `extracted`；完成去重、五类归因和本批统计。不得只报告“已加载流程”、预告下一步或要求用户再次回复才开始分析。
 
-- 缺少任务 ID：只询问该标识。
+- 缺少任务 ID：只询问该标识。`promptVersionId<=0` 时不向用户索取 ID，只提示先在页面左侧
+  选择本次验证任务使用的提示词后重试。
 - 本批查询成功：当轮必须输出完整阶段分析；还有数据时才允许提示“继续分析”。
 - 用户要求整合：当轮必须完成既有批次自检、合并、候选全文生成和 `[S3]` 校验，并在 `valid=true` 后输出最终服务端原样 Diff；不得只输出整合计划。
 - 用户确认写入：只有已展示最终 Diff 时才执行 `[S5]`，不得为各批次分别写入。
@@ -14,31 +15,50 @@
 ## 查询与复核
 
 1. 仅当业务上下文缺少 `ruleGroupId` 时执行 `[S1]`；已有则跳过。
-2. 必须取得验证任务 ID：用户本轮明确提供时优先，否则使用上下文 `validationTaskId`；
-   两者都没有时要求补充。CDN 不能代替任务 ID。
+2. 只从本轮业务上下文取得 `validationTaskId` 和 `promptVersionId`，两者都必须大于 0；
+   前者缺失时询问任务 ID，后者缺失时按上述页面选择提示停止。不得从用户文字、历史消息、
+   CDN 或工具返回猜测/替换。CDN 不能代替任务 ID。
 3. 调用
-   `tool_query_validation_result(validation_task_id=<任务ID>, label_filter=3, page_size=10, operator=当前业务上下文.operator)`。
-   从返回的 `PromptVersionBaseInfo` 取得任务实际使用的 `prompt_version_id`、
-   `version_name`、`version_status` 和完整 `prompt_content`，同时取得验证集、样本标题、
-   `source_item_json`、`candidate_item_json`、标签、`reason` 和 `raw_llm_response`；校验 Agent。
+   `tool_query_validation_result(validation_task_id=上下文.validationTaskId, label_filter=3, page={page_no:<当前批次页码>,page_size:10}, operator=上下文.operator, validation_case_id=0, prompt_version_id=上下文.promptVersionId)`。
+   首批 `page_no=1`，继续分析时递增。只接受 `base_resp.resp_code=1 && result=1`；要求响应
+   `data.validation_task_id` 和 `data.prompt_version.prompt_version_id` 分别与请求完全一致，且每条
+   `data.results[].is_correct=0`。任一不符立即报告上下文/响应不一致并停止。
+   只按以下精确字段读取，禁止用字段含义猜路径：
+   - 任务/验证集/摘要：`data.validation_task_id`、`data.dataset_id`、
+     `data.validation_summary_json`；
+   - 基础提示词：`data.prompt_version.{prompt_version_id,rule_group_id,version_no,version_name,
+     version_status,prompt_content}`；
+   - 每条结果：`data.results[].{validation_result_id,validation_case_id,category_id,source_item_id,
+     candidate_item_id,source_title,candidate_title,human_label,model_label,is_correct,reason,
+     analysis_process,radar_task_id,radar_task_url,source_item_json,candidate_item_json}`；
+   - 分页：`data.page.page_no/page_size/total/has_more`。
+   `data.dataset_id` 和每条 `data.results[].category_id` 必须大于 0；上下文 `ruleGroupId>0` 时要求
+   `data.prompt_version.rule_group_id` 与其一致。响应没有 `agent_id`，禁止声称已由本接口校验 Agent。
    该提示词即本次基础版本，不再查询其他提示词。
-   `prompt_content` 必须非空；为 `null`、空串或仅空白字符时立即停止，说明任务提示词尚未
+   `data.prompt_version.prompt_content` 必须非空；为 `null`、空串或仅空白字符时立即停止，说明任务提示词尚未
    初始化，不能进行 Badcase 归因、分批分析或整合修改。
-   记录 `selectedPromptVersionId=PromptVersionBaseInfo.prompt_version_id`，要求大于 0，
+   记录 `selectedPromptVersionId=data.prompt_version.prompt_version_id`，要求大于 0，
    并锁定 `writeMode=EDIT`。
-   一次最多分析 10 条，不得自行调大 `page_size`：每条会带回两组商品快照和整段
-   `raw_llm_response`，单批 20 条会挤占上下文并导致前批阶段结论被压缩丢失。还有更多时报告剩余数。
+   一次最多分析 10 条，不得自行调大 `page.page_size`：每条会带回两组商品快照、逐项
+   `analysis_process`，且 Kconf 开启时还会带回整段 `raw_llm_response`；单批 20 条会挤占上下文
+   并导致前批阶段结论被压缩丢失。还有更多时按 `page.total/has_more` 报告剩余数。
    用户要求继续时查询下一页；
    必须保持同一任务 ID 和 `PromptVersionBaseInfo.prompt_version_id`，并按
    `validation_case_id` 去重。
-4. 按 `[S2]` 对本批样本类目去重后分别加载规则与必要映射，禁止跨类目混用。逐条按
-   `human_label`、`model_label` 和 `raw_llm_response`（为空时用 `analysis_process`）中的
-   `extracted`，依照 [rule-loading-policy.md](rule-loading-policy.md) 的「Badcase 方向」定位
+4. 仅提取本页 `data.results[].category_id`，去重后逐个按 `[S2]` 调用
+   `radar_query_price_rule(categoryId=<当前去重后的category_id>)`，再按各类目规则实际包含的
+   比价项加载必要映射；禁止从标题、商品 JSON、提示词或模型输出猜类目，禁止跨类目混用。
+   逐条按
+   `human_label`、`model_label` 和 `analysis_process` 中的逐项抽取结果定位嫌疑项；
+   `raw_llm_response` 非空时仅补充核对顶层 `result/reason/confidence/key_diff_point` 和原文。
+   依照 [rule-loading-policy.md](rule-loading-policy.md) 的「Badcase 方向」定位
    嫌疑项。另调用
-   `tool_query_cdn_report(validation_task_id=<任务ID>, operator=当前业务上下文.operator)`
-   取得报告链接。
+   `tool_query_cdn_report(validation_task_id=上下文.validationTaskId, prompt_version_id=上下文.promptVersionId, operator=上下文.operator)`。
+   `base_resp.resp_code=1 && result=1` 时只读取 `data.report_cdn_url` 和
+   `data.report_summary_json`；“验证报告不存在”视为无 CDN，继续分析并使用无链接输出分支；
+   其他失败如实报告并停止。CDN 摘要不能替代逐条验证结果。
 5. 逐条先用 `source_item_json` 与 `candidate_item_json` 核对商品事实，再用
-   `raw_llm_response`（为空时退回 `analysis_process`）中 `extracted` 各比价项的
+   `analysis_process` 各比价项的
    `left`/`right` 的 `value`、`source` 看模型实际抽到了什么，两边对比得出结论；
    并结合 `source_title`、`candidate_title`、`reason`、规则、映射和任务提示词复核。
    两个 `*_item_json` 是 `{"detail":商详,"imageUrl":主图链接}` 结构，内容来自验证集导入时的
@@ -48,7 +68,8 @@
    - 快照与模型抽取一致但客观事实不支持人工标签 → 疑似人工标签错误。
    - `*_item_json` 为空时只能基于标题与 `extracted` 判断；需要商详或主图才能定论时
      归为证据不足，不得拿模型自己的抽取结果去否定人工标签。
-   - `raw_llm_response` 与 `analysis_process` 同时为空时归为数据问题，该条不做归因。
+   - `analysis_process` 为空时，即使 `raw_llm_response` 存在也只可用于排查解析异常；该条归为
+     数据问题，不据原始自由文本直接修改提示词。
    `is_correct=0` 不证明人工标签正确或提示词错误。
    接口不返回可用的规则快照，无法确认本次验证跑的是哪一版规则；因此发现骨架写法与当前
    本轮 `radar_query_price_rule` 返回的类目规则不一致时，必须同时考虑“规则在本次验证后已变更”这一可能，
@@ -105,7 +126,7 @@
 
 1. 只合并当前会话中任务 ID、验证集 ID 和基础提示词 ID 均一致的阶段分析；按
    `validation_case_id` 去重。整合前自检各批阶段结论是否完整可见；任一批次不可见时，
-   必须用同一任务 ID 与同一 `PromptVersionBaseInfo.prompt_version_id` 重新查询该页，
+   必须用同一任务 ID、同一 `PromptVersionBaseInfo.prompt_version_id` 和原 `page.page_no` 重新查询该页，
    不得跳过也不得凭记忆补写。
 2. 合并指向同一规则的重复建议；结合商品快照证据、`extracted` 抽取结果、比价规则和映射
    处理冲突。疑似人工标签错误、模型执行、映射或数据问题以及证据不足不得写入提示词。

@@ -4,34 +4,56 @@
 
 ## 执行门禁
 
-取得任务 ID 和 Case ID 后，输出前必须实际完成：读取 [shared-steps.md](shared-steps.md) 与 [rule-loading-policy.md](rule-loading-policy.md)；查询指定验证结果和 CDN；从任务结果锁定基础提示词；执行 `[S2]`；逐项核对商品快照与模型 `extracted`；完成五类归因。不得只报告“已加载流程”或预告下一步。
+取得任务 ID、Case ID 和页面当前 Prompt ID 后，输出前必须实际完成：读取 [shared-steps.md](shared-steps.md) 与 [rule-loading-policy.md](rule-loading-policy.md)；查询指定验证结果和 CDN；从任务结果锁定基础提示词；执行 `[S2]`；逐项核对商品快照与模型 `extracted`；完成五类归因。不得只报告“已加载流程”或预告下一步。
 
-- 缺少任务 ID 或 Case ID：只询问实际缺失的标识。
+- 缺少任务 ID 或 Case ID：只询问实际缺失的标识。`promptVersionId<=0` 时不向用户索取 ID，
+  只提示先在页面左侧选择本次验证任务使用的提示词后重试。
 - 非提示词缺陷或证据不足：当轮输出完整分析结果，不生成或校验提示词。
 - 确认属于提示词缺陷：当轮继续生成候选完整正文、实际执行 `[S3]`，并在 `valid=true` 后输出带服务端原样 Diff 的修改提案；不得等待用户再次回复才生成提案。
 
 ## 查询与复核
 
 1. 仅当业务上下文缺少 `ruleGroupId` 时执行 `[S1]`；已有则跳过。
-2. 必须取得验证任务 ID：用户本轮明确提供时优先，否则使用上下文 `validationTaskId`；
-   两者都没有时要求补充。同时必须取得 `validation_case_id`，不能只凭文字或 CDN 正式归因。
+2. 只从本轮业务上下文取得 `validationTaskId`、`validationCaseId` 和 `promptVersionId`；
+   三者都必须大于 0。`validationTaskId` 或 `validationCaseId` 缺失时只询问缺失项；
+   `promptVersionId<=0` 时按上述页面选择提示停止。不能从用户文字、历史消息、CDN 或工具返回
+   猜测/替换这些 ID，也不能只凭文字或 CDN 正式归因。
 3. 调用
-   `tool_query_validation_result(validation_task_id=<任务ID>, label_filter=3, validation_case_id=<Badcase ID>, page_size=1, operator=当前业务上下文.operator)`。
-   从返回的 `PromptVersionBaseInfo` 取得任务实际使用的 `prompt_version_id`、
-   `version_name`、`version_status` 和完整 `prompt_content`，同时取得验证集、样本标题、
-   `source_item_json`、`candidate_item_json`、人工/模型标签、`reason` 和 `raw_llm_response`；
-   校验 Agent 及页面非零 `datasetId`。该提示词即本次基础版本，不再查询其他提示词。
-   `prompt_content` 必须非空；为 `null`、空串或仅空白字符时立即停止，说明任务提示词尚未
+   `tool_query_validation_result(validation_task_id=上下文.validationTaskId, label_filter=3, page={page_no:1,page_size:1}, operator=上下文.operator, validation_case_id=上下文.validationCaseId, prompt_version_id=上下文.promptVersionId)`。
+   只接受 `base_resp.resp_code=1 && result=1`；“验证样本结果不存在”或“指定验证样本不是Badcase”
+   直接如实返回并停止。要求响应 `data.validation_task_id`、
+   `data.prompt_version.prompt_version_id` 分别与请求完全一致，`data.results` 恰好一条，且
+   `data.results[0].validation_case_id` 等于请求值、`data.results[0].is_correct=0`；
+   任一不符立即报告上下文/响应不一致并停止。
+   只按以下精确字段读取，禁止用字段含义猜路径：
+   - 任务/验证集/摘要：`data.validation_task_id`、`data.dataset_id`、
+     `data.validation_summary_json`；
+   - 基础提示词：`data.prompt_version.{prompt_version_id,rule_group_id,version_no,version_name,
+     version_status,prompt_content}`；
+   - 单条结果：`data.results[0].{validation_result_id,validation_case_id,category_id,source_item_id,
+     candidate_item_id,source_title,candidate_title,human_label,model_label,is_correct,reason,
+     analysis_process,radar_task_id,radar_task_url,source_item_json,candidate_item_json}`，以及 Kconf
+     开启时才可能返回的 `data.results[0].raw_llm_response`；
+   - 分页：`data.page.page_no/page_size/total/has_more`。
+   `data.dataset_id`、`data.results[0].category_id` 必须大于 0；上下文 `ruleGroupId>0` 时要求
+   `data.prompt_version.rule_group_id` 与其一致。响应没有 `agent_id`，禁止声称已由本接口校验 Agent。
+   该提示词即本次基础版本，不再查询其他提示词。
+   `data.prompt_version.prompt_content` 必须非空；为 `null`、空串或仅空白字符时立即停止，说明任务提示词尚未
    初始化，不能进行 Badcase 归因或修改。
-   记录 `selectedPromptVersionId=PromptVersionBaseInfo.prompt_version_id`，要求大于 0，
+   记录 `selectedPromptVersionId=data.prompt_version.prompt_version_id`，要求大于 0，
    并锁定 `writeMode=EDIT`。
-4. 按 `[S2]` 使用本条样本类目加载规则与必要映射。按 `human_label`、`model_label` 和
-   `raw_llm_response`（为空时用 `analysis_process`）中的 `extracted`，依照
+4. 将 `data.results[0].category_id` 作为本条唯一可信类目 ID，按 `[S2]` 调用
+   `radar_query_price_rule(categoryId=data.results[0].category_id)` 并加载该规则实际需要的映射；
+   禁止从标题、商品 JSON、提示词或模型输出猜类目。按 `human_label`、`model_label` 和
+   `analysis_process` 中的逐项抽取结果定位嫌疑项；`raw_llm_response` 非空时仅补充核对其
+   顶层 `result/reason/confidence/key_diff_point` 及解析前原文。依照
    [rule-loading-policy.md](rule-loading-policy.md) 的「Badcase 方向」定位嫌疑项。另调用
-   `tool_query_cdn_report(validation_task_id=<任务ID>, operator=当前业务上下文.operator)`
-   取得报告链接。
+   `tool_query_cdn_report(validation_task_id=上下文.validationTaskId, prompt_version_id=上下文.promptVersionId, operator=上下文.operator)`。
+   `base_resp.resp_code=1 && result=1` 时只读取 `data.report_cdn_url` 和
+   `data.report_summary_json`；“验证报告不存在”视为无 CDN，继续分析并使用无链接输出分支；
+   其他失败如实报告并停止。CDN 摘要不能替代逐条验证结果。
 5. 先用 `source_item_json` 与 `candidate_item_json` 核对商品事实，再用
-   `raw_llm_response`（为空时退回 `analysis_process`）中 `extracted` 各比价项的
+   `analysis_process` 各比价项的
    `left`/`right` 的 `value`、`source` 看模型实际抽到了什么，两边对比得出结论；
    并结合 `source_title`、`candidate_title`、`reason`、规则、映射和任务提示词复核。
    两个 `*_item_json` 是 `{"detail":商详,"imageUrl":主图链接}` 结构，内容来自验证集导入时的
@@ -41,7 +63,8 @@
    - 快照与模型抽取一致但客观事实不支持人工标签 → 疑似人工标签错误。
    - `*_item_json` 为空时只能基于标题与 `extracted` 判断；需要商详或主图才能定论时
      归为证据不足，不得拿模型自己的抽取结果去否定人工标签。
-   - `raw_llm_response` 与 `analysis_process` 同时为空时归为数据问题，本条不做归因。
+   - `analysis_process` 为空时，即使 `raw_llm_response` 存在也只可用于排查解析异常；本条归为
+     数据问题，不据原始自由文本直接修改提示词。
    `is_correct=0` 不证明人工标签正确或提示词错误。
    接口不返回可用的规则快照，无法确认本次验证跑的是哪一版规则；因此发现骨架写法与当前
    本轮 `radar_query_price_rule` 返回的类目规则不一致时，必须同时考虑“规则在本次验证后已变更”这一可能，
@@ -69,7 +92,7 @@ Diff；CDN 必须是最后一行。
 ### 样本与证据
 - 左 / 右商品：<source_title> / <candidate_title>
 - 人工标签 / 模型结论：<标签>
-- 证据来源：<raw_llm_response / analysis_process（退回）>；商品快照：<有/无>
+- 证据来源：<analysis_process；raw_llm_response 非空时写“analysis_process + raw_llm_response”>；商品快照：<有/无>
 | 比价项 | 左侧快照 | 左侧抽取（value / source） | 右侧快照 | 右侧抽取（value / source） | match | 复核 |
 |---|---|---|---|---|---|---|
 | <比价项> | <快照事实；无快照写“—”> | <value / source> | <快照事实；无快照写“—”> | <value / source> | <true/false> | <结论> |
