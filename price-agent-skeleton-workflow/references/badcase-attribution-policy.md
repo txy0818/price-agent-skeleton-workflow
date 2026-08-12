@@ -24,16 +24,18 @@ Badcase workflow 必须完整读取并执行本文件。人工标签是 SKU 维�
 
 | 标签条件与 SPU 核验结论 | 一级分类 | `caseAttribution` | 直接根因条件 | 是否修改 Prompt | 处理方式 |
 |---|---|---|---|---|---|
-| `humanLabel=1 && modelLabel=2`，且证据确认 SPU 应判同 | 重点 Badcase：模型判得过严 | `PROMPT_DEFECT` | 至少一个直接影响最终错误结论的 `PROMPT_DEFECT_CAUSAL` | 是 | 生成候选完整 Prompt，执行 `[S3]`，校验成功后展示 Diff |
+| `humanLabel=1 && modelLabel=2`，且证据确认 SPU 应判同 | 重点 Badcase：模型判得过严 | `PROMPT_DEFECT` | 至少一个待核验项存在可信规则已证实的 `PROMPT_DEFECT_CAUSAL` 或 `PROMPT_DEFECT_NON_CAUSAL` | 是 | 修复已确认的 Prompt 规则差异；执行 `[S3]`，并注明是否已证明是本条直接根因 |
 | `humanLabel=1 && modelLabel=2`，且证据确认 SPU 应判同 | 重点 Badcase：模型判得过严 | `MODEL_ERROR` | 模型来源、抽取、逐项匹配或最终聚合错误直接导致错误否决 | 否 | 记录模型问题及回归项，不生成 Prompt Diff |
-| `humanLabel=2 && modelLabel=1`，且证据确认 SPU 应判非同 | 真实 Badcase：模型判得过宽 | `PROMPT_DEFECT` | 至少一个直接影响最终错误结论的 `PROMPT_DEFECT_CAUSAL` | 是 | 生成候选完整 Prompt，执行 `[S3]`，校验成功后展示 Diff |
+| `humanLabel=2 && modelLabel=1`，且证据确认 SPU 应判非同 | 真实 Badcase：模型判得过宽 | `PROMPT_DEFECT` | 至少一个待核验项存在可信规则已证实的 `PROMPT_DEFECT_CAUSAL` 或 `PROMPT_DEFECT_NON_CAUSAL` | 是 | 修复已确认的 Prompt 规则差异；执行 `[S3]`，并注明是否已证明是本条直接根因 |
 | `humanLabel=2 && modelLabel=1`，且证据确认 SPU 应判非同 | 真实 Badcase：模型判得过宽 | `MODEL_ERROR` | 模型来源、抽取、逐项匹配或最终聚合错误直接导致错误放行 | 否 | 记录模型问题及回归项，不生成 Prompt Diff |
 | `humanLabel=2 && modelLabel=1`，且 SPU 可以判同，冲突仅由 SKU/SPU 口径导致 | 合理的 SKU/SPU 粒度差异 | `SKU_SPU_SCOPE_DIFFERENCE` | 模型执行正确，人工 SKU 标签与模型 SPU 结论口径不同 | 否 | 排除出模型 Badcase，记录口径依据 |
 | 任一明确冲突方向；全部必查项完成，模型结论有充分证据且不能用 SKU/SPU 口径解释人标冲突 | 非模型 Badcase：人工标签疑似错误 | `HUMAN_LABEL_SUSPECTED_ERROR` | 客观证据支持模型结论，但模型不得自行确认人标错误 | 否 | 记录冲突并交标注侧复核 |
 | 任一明确冲突方向；无法确认 SPU 应同/非同或无法确认直接根因 | 待核验（证据不足：暂时无法归因） | `EVIDENCE_INSUFFICIENT` | 决定性规则、Prompt、商品、图片、映射或模型过程缺失/冲突 | 否 | 列出缺失证据，补证后重跑 |
 | `humanLabel=3`、`modelLabel=3`、任一标签非法或缺失 | 待核验（标签不确定） | `LABEL_UNCERTAIN` | 无法形成明确标签冲突方向 | 否 | 复核标签后重跑 |
 
-仅存在 `PROMPT_DEFECT_NON_CAUSAL` 时不得选择 `PROMPT_DEFECT`，也不得修改 Prompt。
+只要可信规则已明确证明待核验项的 `expectedPriority/expectedMatch` 与任务 Prompt 不一致，
+`PROMPT_DEFECT_CAUSAL` 和 `PROMPT_DEFECT_NON_CAUSAL` 都必须选择 `PROMPT_DEFECT` 并修改 Prompt；二者
+仅用于区分该缺陷是否已证明直接导致本条最终误判。
 `HUMAN_LABEL_SUSPECTED_ERROR` 和 `SKU_SPU_SCOPE_DIFFERENCE` 只允许在规定范围内全部必查项完成且
 不存在阻断性证据缺口时选择。
 

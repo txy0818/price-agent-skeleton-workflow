@@ -54,6 +54,7 @@
 - 证据：<仅写该项左右 value/source、match、reason 与商品快照、提示词或规则之间的关键关系；最多两句>
 ### 结论与建议
 - 一级分类：<合理的 SKU/SPU 粒度差异 / 非模型 Badcase：人工标签疑似错误 / 重点 Badcase：模型判得过严 / 真实 Badcase：模型判得过宽；未通过门禁时写“待核验（标签不确定）”或“待核验（证据不足：暂时无法归因）”>
+- 归因枚举：<PROMPT_DEFECT / MODEL_ERROR / HUMAN_LABEL_SUSPECTED_ERROR / SKU_SPU_SCOPE_DIFFERENCE / EVIDENCE_INSUFFICIENT / LABEL_UNCERTAIN>
 - 具体原因：<事实支持的直接原因；证据不足时写缺失证据>
 - 是否修改提示词：否
 - 建议与回归：不建议修改提示词；<该类型对应的复核或处理建议>
@@ -77,6 +78,7 @@
 - 证据：<仅写该项左右 value/source、match、reason 与商品快照、提示词或规则之间的关键冲突；最多两句>
 ### 结论与建议
 - 一级分类：<重点 Badcase：模型判得过严 / 真实 Badcase：模型判得过宽>
+- 归因枚举：PROMPT_DEFECT
 - 具体原因：提示词缺陷：<缺少、错误、歧义、冲突或作用域不完整的真实位置与因果>
 - 是否修改提示词：是
 - 建议与回归：<修改方案、适用范围和回归项>

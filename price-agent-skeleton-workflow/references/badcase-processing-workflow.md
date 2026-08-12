@@ -35,7 +35,7 @@
 | 口径与根因证据 | 说明 SKU/SPU 口径事实及证据如何支持该分类和具体原因 |
 | 处理动作 | 说明责任方和具体处理方式 |
 | 回归方案 | 说明修复或补证后如何验证 |
-| 是否修改提示词 | 模型判得过严或过宽且具体原因可直接定位到提示词缺陷时写“是”；其余写“否” |
+| 是否修改提示词 | `caseAttribution=PROMPT_DEFECT` 时写“是”；其余写“否” |
 
 人标或模型任一侧为“不确定”时保留原值并进入 `[B5]` 的标签门禁。任何必要字段缺失都保留为空并
 进入 `[B5]` 判断，不得用标题推类目、用模型抽取补商品事实、用当前规则
@@ -158,8 +158,8 @@ Case 不得因重复分页被统计两次。
 | `itemFinding` | 判定条件 | 后续动作 |
 |---|---|---|
 | `ITEM_OK` | Prompt 正确实现规则，模型取值、来源和 `match` 均与客观证据及规则一致 | 保留为已核验正常项 |
-| `PROMPT_DEFECT_CAUSAL` | Prompt 与规则不一致，且“不调用接口的规则因果复核”确认该差异会改变最终错误结论 | 记录直接 Prompt 根因，交 `[B6]` 归因为 Prompt 缺陷 |
-| `PROMPT_DEFECT_NON_CAUSAL` | Prompt 与规则不一致，但该差异未改变本项有效结论、仍有其他合法决定项，或不能证明会改变最终结论 | 记录伴随 Prompt 缺陷，不得仅凭本项修改 Prompt |
+| `PROMPT_DEFECT_CAUSAL` | Prompt 与规则不一致，且“不调用接口的规则因果复核”确认该差异会改变最终错误结论 | 记录直接 Prompt 根因，交 `[B6]` 归因为 Prompt 缺陷并修改 Prompt |
+| `PROMPT_DEFECT_NON_CAUSAL` | Prompt 与规则明确不一致，但该差异未改变本项有效结论、仍有其他合法决定项，或不能证明会改变最终结论 | 记录已确认的规则同步缺陷，交 `[B6]` 归因为 Prompt 缺陷并修改 Prompt；同时注明尚未证明是本条误判直接根因 |
 | `MODEL_SOURCE_ERROR` | Prompt 来源优先级正确，但模型跳过有明确值的更高优先级来源、使用不允许来源，或 `source` 缺失/无法归一且实际路径可确认错误 | 记录模型来源执行错误 |
 | `MODEL_EXTRACTION_ERROR` | Prompt 已允许正确来源，但模型漏抽或错抽客观值 | 记录模型抽取错误 |
 | `MODEL_MATCH_ERROR` | 左右值及来源正确，但模型 `match` 未按规则、特殊条件或合法映射计算 | 记录模型逐项匹配错误 |
@@ -194,8 +194,8 @@ Case 不得因重复分页被统计两次。
 
 | 判断顺序 | 比较对象 | 命中条件 | 结果或下一步 |
 |---:|---|---|---|
-| 1 | 真实规则的 `expectedPriority/expectedMatch` vs `promptContent` 实际实现 | 不一致 | 先记录 Prompt 差异，再执行步骤 2 的规则因果复核 |
-| 2 | 用正确规则、已确认客观值计算本项标准 `match`，并按任务 Prompt 明确的 Step3 规则聚合全部已核验项 | 标准最终结论与当前错误 `modelLabel` 不同，且与证据支持的正确方向一致 | `PROMPT_DEFECT_CAUSAL` → 整条 `PROMPT_DEFECT`；否则记 `PROMPT_DEFECT_NON_CAUSAL` 并继续 |
+| 1 | 真实规则的 `expectedPriority/expectedMatch` vs `promptContent` 实际实现 | 存在来源缺失、多出、顺序错误、规则遗漏、错误或冲突 | 立即确认 Prompt 缺陷并将整条 `caseAttribution` 记为 `PROMPT_DEFECT`；再执行步骤 2，仅补充是否为本条直接根因 |
+| 2 | 用正确规则、已确认客观值计算本项标准 `match`，并按任务 Prompt 明确的 Step3 规则聚合全部已核验项 | 标准最终结论与当前错误 `modelLabel` 不同，且与证据支持的正确方向一致 | 记 `PROMPT_DEFECT_CAUSAL`；否则记 `PROMPT_DEFECT_NON_CAUSAL`。两者均修改 Prompt，区别只在是否已证明直接导致本条误判 |
 | 3 | 左右客观事实 vs `parsedAnalysis[比价项名].left/right.value/source` | Prompt 正确，但模型来源选择、漏抽或错抽导致值不一致 | `MODEL_SOURCE_ERROR` 或 `MODEL_EXTRACTION_ERROR` |
 | 4 | 按正确规则计算的标准 `match` vs `parsedAnalysis[比价项名].match` | 模型值/来源正确，但 `match` 不一致 | `MODEL_MATCH_ERROR` |
 | 5 | 全部核验后 `match` 的 Step3 聚合结果 vs 顶层 `modelLabel` | 逐项均正确但顶层结论不一致 | 模型聚合错误 → 整条 `MODEL_ERROR` |
@@ -251,11 +251,13 @@ Case 不得因重复分页被统计两次。
    任一 `match=false` → different”，不得自行发明其他聚合逻辑；
 4. 用标准 `match` 集合推导标准最终结论，并与当前 `modelLabel` 比较；
 5. Prompt 差异使标准最终结论从当前错误方向改变为证据支持的正确方向时，记
-   `PROMPT_DEFECT_CAUSAL`；结果不变时记 `PROMPT_DEFECT_NON_CAUSAL`；任一客观值、标准 `match`、
-   其他决定项或聚合规则无法确认时记 `EVIDENCE_INSUFFICIENT`。
+   `PROMPT_DEFECT_CAUSAL`；结果不变或无法证明会改变时记 `PROMPT_DEFECT_NON_CAUSAL`。只要
+   `expectedPriority/expectedMatch` 与 Prompt 的明确差异已由可信规则证实，两者都聚合为
+   `caseAttribution=PROMPT_DEFECT` 并修改 Prompt；缺少可信规则、无法确认 Prompt 实际实现或差异本身
+   无法确认时，才记 `EVIDENCE_INSUFFICIENT`。
 
-不得假定“Prompt 修正后模型一定会正确抽取”，也不得把本步骤描述成回归验证。直接根因是能够通过
-上述确定性推导改变最终错误结论的问题；不能改变最终结论的问题只记录为伴随异常。
+不得假定“Prompt 修正后模型一定会正确抽取”，也不得把本步骤描述成回归验证。规则因果复核只区分
+Prompt 缺陷是本条直接根因还是已确认的伴随规则同步缺陷，不再作为“是否修改 Prompt”的门禁。
 
 图片能够清晰支持该项事实且不与更高优先级来源冲突时，将观察值作为客观事实参与匹配判定；
 图片缺失、模糊、裁切不全、主体无法定位或与其他来源冲突时，必须保留冲突并进入 `[B5]`，不得猜测。
