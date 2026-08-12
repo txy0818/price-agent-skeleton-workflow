@@ -7,8 +7,10 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 
 ## 入口边界
 
-- 进入 Skill 时立即重新读取本轮业务上下文的 `promptVersionId` 并覆盖上一轮值；该值是唯一版本
-  上下文，历史及工具返回的 Prompt ID 不得替换它。具体查询和
+- 进入 Skill 时只读取本轮业务上下文中已展开的 `promptVersionId`，绑定为
+  `currentPromptVersionId` 并丢弃历史同名值。历史消息、模型记忆、版本名称、提案及工具返回的任何
+  Prompt ID 不得参与赋值、比较或纠正。字段缺失、为空或为模板占位符时规范化为 0 并走
+  INITIALIZE；非空但不是非负整数时停止，禁止从历史补值。具体查询和
   确认取值统一按 [base-version-policy.md](references/base-version-policy.md) 与
   [shared-steps.md](references/shared-steps.md) 执行。
 - 用户指定最新、线上、归档、草稿、ID、名称或版本时，执行
@@ -62,6 +64,10 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 
 `promptVersionId>0` 命中 EDIT 后禁止再查找 INITIALIZE workflow；当前正文残缺不是切换流程或要求
 用户补正文的理由，必须由 EDIT 按其格式重构分支处理。
+
+选定 workflow 后，每次工具调用都必须从本轮 `currentPromptVersionId` 重新构造版本参数，禁止复用
+上一轮请求参数。工具返回的新版本 ID 只允许展示或校验本次响应，不得用于声称页面选中版本已变化，
+不得要求用户切换到该 ID 后重试。
 
 ## 不可跳过
 
