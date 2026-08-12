@@ -129,8 +129,10 @@
 - `Step2`：按各比价项规则生成 `match` 和 `reason`；
 - `Step3`：只能基于生效比价项的 `match` 得出 `result`。
 
-`Step3` 必须写入本轮规则中的综合判定条目及例外，并明确禁止跳过 Step1、Step2 直接给结果。
-涉及 `compareLogic` 的展开及其 Step3 影响只读取 [enums.md](enums.md) 的完整定义，不在本文件重复。
+`Step3` 必须使用下方固定通用 Step3，并明确禁止跳过 Step1、Step2 直接给结果。当真实规则存在
+`compareLogic=货号匹配逻辑` 时，使用 [enums.md](enums.md) 规定的完整货号 Step3 替换通用 Step3，
+不得把两套聚合规则并列。除货号逻辑外，不得根据其他 `compareLogic` 自行改写 Step3；本轮真实特殊
+规则若明确规定综合判定例外，才在不冲突的前提下追加该真实例外。
 
 “品牌”的母子品牌映射和品牌互认结果只用于 Step2 计算品牌比价项的 `match`，不得仅因比价项名称为
 “品牌”就在 Step3 新增固定否决或放宽逻辑。只有本轮真实 `specialRuleContent.ruleContent` 或综合判定
@@ -216,12 +218,12 @@
 
 **Step3：综合判定**
 —基于所有生效比价项的`match`字段得出`result`：
-- <来自当前规则的综合判定条目1>
-- <来自当前规则的综合判定条目2>
-- <来自当前规则的例外条目，如某项不构成单独否决；没有则删除>
-- 严禁跳过Step1、Step2直接给出`result`，必须先完成抽取和逐项匹配。
+- 所有生效比价项`match=true`时，必须判定为`same`。
+- 任一生效比价项`match=false`时，必须判定为`different`。
+- 严禁跳过Step1、Step2直接给出`result`；必须先完成抽取和逐项匹配，再得出最终结论。
 
-<若真实 compareLogic 对 Step3 有特殊影响，逐字符按 enums.md 的完整定义生成；否则删除本行。>
+<若本轮真实特殊规则明确规定综合判定例外，在此追加；没有则删除本行。>
+<若真实 compareLogic=货号匹配逻辑，删除上方整个通用 Step3，并逐字符使用 enums.md 的完整货号 Step3；否则删除本行。>
 
 ---
 
