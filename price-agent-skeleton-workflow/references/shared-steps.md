@@ -12,7 +12,7 @@
 ## S2 加载规则与映射
 
 严格执行 [rule-loading-policy.md](rule-loading-policy.md)。初始化固定先调用
-`tool_query_category_ids`，再用返回的每个 `categoryId` 调 `radar_query_price_rule`；修改和 Badcase
+`tool_query_category_ids`，再用返回的每个 `categoryId` 调 `radar_query_price_rule`；修改
 按目标范围加载类目规则。汇总全部有效 `ruleTableInfo[].compareItem` 后执行映射硬门禁：精确包含
 “品牌”时必须调用品牌关系 MCP 并按规则响应的 `cateName` 过滤，不包含“品牌”时禁止调用；精确
 包含“材质”时必须加载材质关系 Skill 并调用其 MCP，不包含“材质”时禁止调用。进入 S3 前必须有
@@ -93,7 +93,7 @@ Diff 只取服务端 `data.diff_content`，禁止自行书写。校验调用会�
 严格使用目标 workflow 的唯一模板：标题为第一行，字段和顺序不变，替换全部占位符并解析条件
 分支；模板外不加寒暄、摘要或结论。
 
-- 修改/Badcase 修复：只展示同次 S3 的非零 `diff_record_id` 和逐字符复制的 `diff_content`，使用
+- 修改：只展示同次 S3 的非零 `diff_record_id` 和逐字符复制的 `diff_content`，使用
   `diff` 围栏并保留 `+`、`-`、空格、标题和顺序；不得摘要、解释、补删或重编号。提案写明当前
   提示词由页面左侧选择的 `promptVersionId` 决定。用户明确要求展开全文时，逐字符输出同次 S3
   请求已经提交并锁定的 `prompt_content`，不得重新生成。
@@ -133,9 +133,9 @@ Diff 只取服务端 `data.diff_content`，禁止自行书写。校验调用会�
 
 - `prompt_diff_record_id`：紧邻提案同次 S3 的非零 ID。
 - `prompt_version_id`：重新读取本轮上下文 `promptVersionId`，禁止使用提案旧版本或上轮返回的
-  `new_prompt_version_id`。INITIALIZE 中缺失、0 或占位符统一传 `0`；EDIT/Badcase 必须大于 0，
+  `new_prompt_version_id`。INITIALIZE 中缺失、0 或占位符统一传 `0`；EDIT 必须大于 0，
   缺失、0 或占位符时停止。
-- `source_type`：INITIALIZE=3，EDIT/Badcase=2。原提案模式只决定此字段。
+- `source_type`：INITIALIZE=3，EDIT=2。原提案模式只决定此字段。
 - 不传 `prompt_content`；服务端以 Diff 记录正文为准。
 
 `promptVersionId>0` 时先按 [base-version-policy.md](base-version-policy.md) 精确查询本轮基础版本并

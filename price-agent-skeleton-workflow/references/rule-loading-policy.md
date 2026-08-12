@@ -15,7 +15,7 @@
    `radar_query_price_rule(categoryId=<当前 categoryId>)`；不得漏查、合并 ID 或只查第一项。每次均
    要求业务成功、`isExist=true` 且 `data.labelCateRule` 完整。记录每个 ID 对应的
    `cateName`、`cateNameTree`、`belongBusiness` 和 `minCateId`，作为本轮唯一类目作用域。
-3. Badcase 按目标 workflow 的真实样本类目查询规则；不得用空提示词或模型猜测类目。
+3. 单条 Badcase workflow 不使用本文件，也不查询类目规则或关系映射。
 4. 先以全部有效 `ruleTableInfo[].compareItem` 建立集合：集合中精确存在“品牌”时，必须调用
    `radar_query_brand_relation`；过滤后有有效组则必须输出母子品牌映射表，为 0 组则省略该表并准确说明
    “本轮品牌关系查询后无符合当前类目的母子品牌映射”。精确存在“材质”时，必须
@@ -34,9 +34,9 @@
 ### 类目规则
 
 初始化固定使用 `tool_query_category_ids` 返回的每个 `categoryId` 调 `radar_query_price_rule`。
-Badcase 有商品 ID 时可按目标 workflow 使用 `itemId`；不要传互相冲突的条件。
+不要传互相冲突的条件。
 
-类目定位条件来自当前业务上下文、Agent 详情，或 Badcase/验证任务返回的真实
+类目定位条件来自当前业务上下文或 Agent 详情返回的真实
 商品与类目字段。空提示词不是类目来源。
 
 读取 `data.labelCateRule`：
@@ -194,7 +194,6 @@ Badcase 有商品 ID 时可按目标 workflow 使用 `itemId`；不要传互相�
 |---|---|---|---|
 | 初始化 | `tool_query_category_ids` 后逐 ID 查询 | 调用 `radar_query_brand_relation`，主要按 `cateName` 过滤 | 必须加载关系 Skill、主要按 `cateName` 过滤 |
 | 修改 | 仅非精确修改时按需查询 | 仅非精确修改且工具存在时查询 | 仅非精确修改且工具存在时查询 |
-| Badcase Prompt 缺失检查 | 按样本真实类目查询并核验全部有效比价项 | 真实规则包含品牌时查询并按类目过滤 | 真实规则包含材质时全量查询后按类目过滤 |
 
 跨类目时分别建立作用域，不得混用。相同工具、入参和作用域可复用本轮结果。
 
@@ -203,13 +202,6 @@ Badcase 有商品 ID 时可按目标 workflow 使用 `itemId`；不要传互相�
 初始化目标约 1 万字：完整保留有效 `compareItem`、来源优先级、匹配逻辑和明确例外；品牌、
 材质只保留当前作用域必要映射；模型自行生成时母子品牌最多 100 组、材质最多 50 组，用户明确
 新增的母子品牌不受 100 组限制。过长时精简行文或改成运行时查询指令，不得硬截断规则。
-
-## Badcase Prompt 缺失检查范围
-
-不得使用 `analysis_process`、人工/模型标签或商品快照缩小范围。按样本真实 `categoryId` 查询规则，
-逐一检查全部有效 `compareItem` 的转换结果以及必要品牌/材质映射是否完整写入验证任务锁定的 Prompt。
-没有可信规则、必要映射或基础 Prompt 时记录 `PROMPT_MISSING_UNCONFIRMED`，不得使用当前常识或其他
-版本补齐。
 
 ## 停止条件
 

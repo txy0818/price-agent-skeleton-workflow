@@ -1,6 +1,6 @@
 ---
 name: price-agent-skeleton-workflow
-description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查询、修改、优化、增删、保存、发布、验证任务和 Badcase Prompt 缺失检查，包括“一键分析 Badcase”、单条及整任务检查；Badcase 仅检查真实规则或合法映射是否在 Prompt 中缺失，不分析模型、标签或 SKU/SPU 问题。也处理对紧邻提示词提案的确认、同意、保存、创建草稿、拒绝或取消。
+description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查询、修改、优化、增删、保存和发布，也处理页面发起的单条 Badcase 分析。Badcase 只查询一次验证结果并由模型自由分析，不支持整任务、分页、续批或自动修改 Prompt。也处理对紧邻提示词提案的确认、同意、保存、创建草稿、拒绝或取消。
 ---
 
 # PriceStudio 提示词工作流
@@ -34,19 +34,17 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
   不是范围外请求，也不是重新查询页面当前提示词。
 - “确认”“同意”“保存”“创建草稿”等表达 → 提案决策操作；无论是否紧邻都不是范围外请求，
   直接进入 [shared-steps.md](references/shared-steps.md) `[S5]`，入口不提前判断或拒绝。
-- 用户输入任何 Badcase 相关内容时，直接校验本轮业务上下文的 `validationTaskId`；只有
-  `validationTaskId>0` 才允许继续。缺失、为 0
+- 用户输入任何 Badcase 相关内容时，直接校验本轮业务上下文的 `validationTaskId` 和
+  `validationCaseId`；只有两者都大于 0 才允许继续。任一缺失、为 0
   或为占位符时，不调用任何 Badcase workflow 或 MCP，只回复：“请通过页面的「一键分析 Badcase」
   按钮发起分析，当前不支持手动填写 Badcase、Case ID 或验证任务 ID。”用户消息或 input 中即使写有
   Badcase ID、Case ID、验证任务 ID 或 `#数字`，也不得将其作为上下文、不得向用户索取 ID。
-  门禁通过后立即建立只读路由快照
-  `badcaseRouteContext={validationCaseId:上下文.validationCaseId, validationTaskId:上下文.validationTaskId}`：
-  `validationCaseId>0` 固定进入单条流程，否则固定进入验证任务流程。禁止从用户文字或 input 中的
-  `#数字`、Badcase ID、Case ID、任务 ID 或“单条/整任务”等描述提取、补写或覆盖路由快照，也不得
+  门禁通过后固定进入单条流程。禁止从用户文字或 input 中的
+  `#数字`、Badcase ID、Case ID、任务 ID 等描述提取、补写或覆盖业务上下文，也不得
   因用户未在文字中重复 ID 而改走普通 EDIT。
-- Badcase 路由只执行 Prompt 缺失检查：逐类目对照全部有效真实规则、必要品牌/材质映射与验证任务
-  实际 Prompt。禁止分析模型抽取/来源/匹配/聚合错误、人工标签、商品事实、图片或 SKU/SPU 口径；
-  未发现 Prompt 缺失时只报告“未发现 Prompt 缺失”，不得继续寻找其他 Badcase 原因。
+- Badcase 只执行 [badcase-single-workflow.md](references/badcase-single-workflow.md)：只调用一次
+  `tool_query_validation_result`，随后由模型基于响应自由分析并按固定模板输出；不调用其他业务 MCP，
+  不生成 Prompt、Diff 或写入建议，输出少于 5000 个中文字符。
 - 写操作即使没有方向也是完整请求，禁止追问方向或索取 Badcase；只按 `promptVersionId` 选路，
   用户使用“初始化”或“修改”等措辞不能改变版本路由。
 
@@ -54,9 +52,8 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 
 | 请求或状态 | 必须完整读取并执行 |
 |---|---|
-| Badcase 意图且上下文 `validationTaskId` 缺失、为 0 或占位符 | 不读取 Badcase workflow、不调用 MCP；只输出入口门禁的固定按钮提示 |
-| `badcaseRouteContext.validationCaseId>0` | [badcase-single-workflow.md](references/badcase-single-workflow.md) |
-| `badcaseRouteContext.validationCaseId<=0 && badcaseRouteContext.validationTaskId>0` | [badcase-task-workflow.md](references/badcase-task-workflow.md) |
+| Badcase 意图且上下文 `validationTaskId` 或 `validationCaseId` 缺失、为 0 或占位符 | 不调用 MCP；只输出入口门禁的固定按钮提示 |
+| Badcase 意图且上下文 `validationTaskId>0 && validationCaseId>0` | [badcase-single-workflow.md](references/badcase-single-workflow.md) |
 | 仅查询当前提示词 | [base-version-policy.md](references/base-version-policy.md) |
 | 紧邻上一条有效提案后要求展开/查看/展示完整提示词 | 恢复该提案 workflow，只执行 [shared-steps.md](references/shared-steps.md) `[S4]` 的展开全文分支 |
 | 确认/同意/保存/创建草稿 | 直接执行 [shared-steps.md](references/shared-steps.md) `[S5]`；所有门禁和错误均由 `[S5]` 处理 |
@@ -76,7 +73,7 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 明确允许跳过的步骤。详细版本选择、规则与关系加载、骨架格式、S1～S5、Diff、确认、写入参数和
 输出模板，分别以对应 reference 为唯一权威，本文件不补充或重解释。
 
-凡产生提示词提案的 INITIALIZE、EDIT 或 Badcase 修复，首条可见回复前必须完成目标 workflow
+凡产生提示词提案的 INITIALIZE 或 EDIT，首条可见回复前必须完成目标 workflow
 要求的候选全文和 [shared-steps.md](references/shared-steps.md) `[S3]`。只有真实响应满足
 `valid=true` 且 `diff_record_id>0` 才能按 `[S4]` 展示提案；否则只返回 workflow 规定的最终错误。
 禁止用模型自检代替工具、先展示再校验、伪造 Diff，或把中间错误作为用户确认节点。

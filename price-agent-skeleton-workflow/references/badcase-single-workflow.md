@@ -1,59 +1,59 @@
-# 单条 Badcase Prompt 缺失检查
+# 单条 Badcase 分析
 
-进入本流程立即锁定 `badcaseMode=SINGLE`。完整读取并执行
-[badcase-processing-workflow.md](badcase-processing-workflow.md)、
-[badcase-attribution-policy.md](badcase-attribution-policy.md)、
-[rule-loading-policy.md](rule-loading-policy.md) 和 [shared-steps.md](shared-steps.md)。
+本流程只处理业务上下文指定的一条 Badcase。只调用一次 `tool_query_validation_result`，取得结果后由模型
+结合返回内容自由分析；不读取其他 reference，不调用规则、品牌、材质、CDN、Prompt 校验或写入工具。
 
-同一轮完成验证结果、真实规则、必要映射、Prompt 缺失对照和 CDN 查询。只分析 Prompt 缺失；禁止分析
-模型错误、人工标签、SKU/SPU 口径、商品图片或其他原因。
+## 1. 上下文门禁
 
-- `PROMPT_MISSING`：生成补齐缺失后的候选完整 Prompt，执行 `[S3]`，使用“存在缺失”模板。
-- `NO_PROMPT_MISSING` 或 `PROMPT_MISSING_UNCONFIRMED`：不执行 `[S3]`，使用“未修改”模板。
+只从本轮业务上下文读取：`validationTaskId`、`validationCaseId`、`promptVersionId`、`operator`。前三个
+ID 必须大于 0；禁止从用户文字提取、补写或替换 ID。缺失时固定回复：
 
-## 存在缺失
+`请通过页面的「一键分析 Badcase」按钮对单条 Badcase 发起分析，当前不支持手动填写 Badcase、Case ID 或验证任务 ID。`
 
-````markdown
-## Badcase Prompt 缺失检查
-- Agent：`<名称；查不到时写ID>`
-- 任务 / Badcase / 验证集：`<task_id> / <case_id> / <dataset_id>`
-- 任务提示词：`<名称>`（ID：`<ID>`）
-- 检查结果：`PROMPT_MISSING`
-- 修改建议 ID（diff_id）：`<同次 S3 非零 data.diff_record_id>`
-- 状态：尚未保存
-### 缺失对照
-| 缺失类型 | Badcase 触发信号 | 类目 / 对象 | 真实规则、关系或格式依据 | Prompt 当前实现 | 确认缺失 | 建议补入 |
-|---|---|---|---|---|---|---|
-| <五类枚举之一> | <标签方向、比价项键/match 或全量兜底> | <逐项列出> | <原始依据及转换结果> | <原文和位置或“未实现”> | <缺失内容> | <通用补齐内容> |
+## 2. 唯一工具调用
+
+只调用一次：
+
+`tool_query_validation_result(validation_task_id=上下文.validationTaskId, validation_case_id=上下文.validationCaseId, prompt_version_id=上下文.promptVersionId, operator=上下文.operator)`
+
+禁止传 `label_filter`、`page`、`continuation_token`、`conversation_id` 或其他字段；禁止重试。要求外层
+`result=1`、`data.baseResp.respCode=1`，响应任务 ID、Prompt ID、唯一结果的 Case ID 与请求一致，且结果
+满足 `isCorrect=0`。失败、空结果、多结果或身份不一致时，只返回真实错误并停止。
+
+## 3. 自由分析
+
+完整读取该次响应可用内容，包括任务 Prompt、人工/模型标签、`reason`、`analysisProcess`、左右商品标题
+及商品 JSON。模型自行判断可能问题，可分析 Prompt、模型执行、标签、SKU/SPU、商品证据、输出格式或
+证据不足；不强制枚举、判断树、逐项表或固定归因顺序。
+
+约束只有以下四条：
+
+1. 结论必须引用响应中的具体证据，区分“已确认”和“可能”；不得编造规则、映射、图片内容或工具结果。
+2. 未调用真实规则/关系接口时，不得声称已确认当前规则或品牌、材质映射；只能指出 Prompt 自身明显缺失、
+   内部冲突或疑似未同步。
+3. 本流程只分析，不生成候选 Prompt、Diff，不调用 `tool_validate_prompt_skeleton` 或
+   `tool_edit_prompt_skeleton`，也不请求用户确认写入。
+4. 可见回复必须少于 5000 个中文字符；优先写最关键的 1～3 个问题，避免复述完整接口响应。
+
+## 4. 唯一输出模板
+
+严格使用以下模板，字段和顺序不变，模板前后不添加文字：
+
+```markdown
+## Badcase 分析
+- 任务 / Badcase / 验证集：`<task_id> / <case_id> / <dataset_id；缺失写“未返回”>`
+- 任务提示词：`<version_name；缺失写“未返回”>`（ID：`<prompt_version_id>`）
+- 标签：`human_label=<值>`（<映射>），`model_label=<值>`（<映射>）
+
+### 发现的问题
+1. **<问题名称>**：<接口证据及判断>
+2. **<可选；无第二项则删除整行>**：<接口证据及判断>
+3. **<可选；无第三项则删除整行>**：<接口证据及判断>
+
 ### 结论
-- 是否修改提示词：是
-- 说明：基础 Prompt 未完整实现上述真实规则或合法映射；本流程不判断该缺失是否导致模型误判。
-### Diff
-```diff
-<逐字符复制同次 tool_validate_prompt_skeleton 返回的 data.diff_content>
+- 主要问题：<一句话结论；无法确认时明确写证据不足>
+- Prompt 是否可能需要调整：<是 / 否 / 待核验>
+- 建议：<下一步处理或补证建议；不得声称已修改>
 ```
-完整提示词已生成并通过格式校验，未在此展开。需查看请回复「展开完整提示词」。
-以上仅为修改提案。确认后创建新提示词草稿，不覆盖基础版本。
-确认无误请回复：**确认创建提示词草稿**。
-验证集报告：[查看 CDN 报告](<真实链接>)
-````
 
-## 未修改
-
-````markdown
-## Badcase Prompt 缺失检查
-- Agent：`<名称；查不到时写ID>`
-- 任务 / Badcase / 验证集：`<task_id> / <case_id> / <dataset_id>`
-- 任务提示词：`<名称>`（ID：`<ID>`）
-- 检查结果：<`NO_PROMPT_MISSING` / `PROMPT_MISSING_UNCONFIRMED`>
-### 检查证据
-- 核验范围：Step3、类目全部有效比价项、必要品牌映射、必要材质映射、输出格式
-- 对照结果：<未发现缺失；或列明无法取得的规则/Prompt/映射证据>
-### 结论
-- 是否修改提示词：否
-- 说明：<未发现 Prompt 缺失；或证据不足，补齐后重跑>。本流程不继续分析其他 Badcase 原因。
-验证集报告：[查看 CDN 报告](<真实链接>)
-````
-
-CDN 无链接时替换最后一行。模板前后不得添加文字。缺失模板必须有本轮成功 S3、非零 diff_id 和非空
-Diff；未修改模板禁止出现 Diff、确认话术或非 Prompt 缺失归因。
+`human_label/model_label` 映射：`1=同款`、`2=非同款`、`3=无法判断`；缺失或其他值原样展示并写“未知”。
