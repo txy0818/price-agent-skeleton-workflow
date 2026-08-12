@@ -1,87 +1,33 @@
-# 单条 Badcase 分析
+# 单条 Badcase Prompt 缺失检查
 
-本流程分析业务上下文指定的一条 Badcase。共享步骤见 [shared-steps.md](shared-steps.md)。
+进入本流程立即锁定 `badcaseMode=SINGLE`。完整读取并执行
+[badcase-processing-workflow.md](badcase-processing-workflow.md)、
+[badcase-attribution-policy.md](badcase-attribution-policy.md)、
+[rule-loading-policy.md](rule-loading-policy.md) 和 [shared-steps.md](shared-steps.md)。
 
-进入本流程立即锁定 `badcaseMode=SINGLE`；后续步骤和工具响应不得修改该值。
+同一轮完成验证结果、真实规则、必要映射、Prompt 缺失对照和 CDN 查询。只分析 Prompt 缺失；禁止分析
+模型错误、人工标签、SKU/SPU 口径、商品图片或其他原因。
 
-> **命中即执行**：取得本轮 `validationTaskId`、`validationCaseId` 和 `promptVersionId` 后，同一轮
-> 完成真实结果查询、规则查询、按核验范围查询必要映射、证据复核、归因分类、CDN 查询和固定结果输出；不得只
-> 查询验证结果后自由总结，也不得预告下一步。
+- `PROMPT_MISSING`：生成补齐缺失后的候选完整 Prompt，执行 `[S3]`，使用“存在缺失”模板。
+- `NO_PROMPT_MISSING` 或 `PROMPT_MISSING_UNCONFIRMED`：不执行 `[S3]`，使用“未修改”模板。
 
-> **只分析错误样本**：精确查询结果必须满足 `is_correct=0`；正确样本或查无结果时返回真实错误并停止。
-
-> **按修改门禁选唯一分支**：只有模型判得过严或过宽且具体原因可直接定位到提示词缺陷时，才生成候选完整
-> 提示词、执行 `[S3]` 并输出 Diff；其余结果只输出分析，不调用校验工具。
-
-## 必读
-
-完整读取 [badcase-processing-workflow.md](badcase-processing-workflow.md)、
-[badcase-attribution-policy.md](badcase-attribution-policy.md)、[rule-loading-policy.md](rule-loading-policy.md)
-和 [shared-steps.md](shared-steps.md)，按统一内核规定的时序执行。只有“是否修改提示词=是”时，
-再读取 [edit-skeleton-workflow.md](edit-skeleton-workflow.md) 的 Diff 与确认门禁。任一必读文件读取失败，
-只返回准确文件名和真实读取错误。首条可见回复只能是下方固定分析结果或明确错误。
-读取完成后连续执行统一流程 `[B0]`～`[B8]`。验证结果、基础版本、规则、必要映射、CDN 和 S3
-均由统一流程查询或执行；本入口不得重复调用、改写参数或另造共同处理规则。
-
-## 查询与判断
-
-1. 从入口的 `badcaseRouteContext` 反校验 `validationCaseId>0`，再重新读取本轮业务上下文并锁定
-   `badcaseMode=SINGLE`；不得解析用户文字中的 `#数字` 或 ID，不得复用上一轮 ID 或切换为其他模式。
-2. 按统一流程 `[B0]`～`[B3]` 完成入口校验、单条验证结果查询、基础版本锁定、样本规范化，以及
-   类目规则和 CDN 查询；必要映射在 `[B4]` 确定核验范围后查询。所有 MCP 名称、参数和响应门禁只以统一流程为准，本入口不复制、
-   删减、改名或绕过。
-3. 按 `[B4]`～`[B6]` 建立逐项证据、执行充分性门禁并选择唯一一级分类；不得用自由总结替代。
-4. 按 `[B7]` 选择唯一分支：仅“是否修改提示词=是”时生成完整候选提示词并执行 `[S3]`；其余不得
-   生成候选正文或调用校验工具。
-5. 按 `[B8]` 使用下方对应模板输出；首条可见回复只能是固定分析结果或明确工具/数据错误。
-
-## 分析结果
-
-按 `[S4]` 展示。以下不是示例，而是本流程唯一允许的可见回复协议。先按修改门禁选择唯一模板，再逐项、
-按序套用；回复第一行必须是 `## Badcase 分析`，模板前后不得添加任何文字，CDN 必须是最后一行。
-
-### 非提示词缺陷模板
+## 存在缺失
 
 ````markdown
-## Badcase 分析
+## Badcase Prompt 缺失检查
 - Agent：`<名称；查不到时写ID>`
 - 任务 / Badcase / 验证集：`<task_id> / <case_id> / <dataset_id>`
 - 任务提示词：`<名称>`（ID：`<ID>`）
-### 分类证据
-- 标签字段：`human_label=<原始值>`（<中文映射>），`model_label=<原始值>`（<中文映射>）
-- 依据比价项：<analysis_process 中直接支持一级分类的比价项名称；无适用项写“无”>
-- SKU/SPU 口径依据：<说明为何 SPU 维度应同或应非同；证据不足时列出缺失项>
-- 证据：<仅写该项左右 value/source、match、reason 与商品快照、提示词或规则之间的关键关系；最多两句>
-### 结论与建议
-- 一级分类：<合理的 SKU/SPU 粒度差异 / 非模型 Badcase：人工标签疑似错误 / 重点 Badcase：模型判得过严 / 真实 Badcase：模型判得过宽；未通过门禁时写“待核验（标签不确定）”或“待核验（证据不足：暂时无法归因）”>
-- 归因枚举：<PROMPT_DEFECT / MODEL_ERROR / HUMAN_LABEL_SUSPECTED_ERROR / SKU_SPU_SCOPE_DIFFERENCE / EVIDENCE_INSUFFICIENT / LABEL_UNCERTAIN>
-- 具体原因：<事实支持的直接原因；证据不足时写缺失证据>
-- 是否修改提示词：否
-- 建议与回归：不建议修改提示词；<该类型对应的复核或处理建议>
-该样本不满足提示词修改门禁，不建议修改。
-验证集报告：[查看 CDN 报告](<真实链接>)
-````
-
-### 提示词缺陷模板
-
-````markdown
-## Badcase 分析
-- Agent：`<名称；查不到时写ID>`
-- 任务 / Badcase / 验证集：`<task_id> / <case_id> / <dataset_id>`
-- 任务提示词：`<名称>`（ID：`<ID>`）
-- 修改建议 ID（diff_id）：`<原样引用 S3 返回的非零 data.diff_record_id>`
+- 检查结果：`PROMPT_MISSING`
+- 修改建议 ID（diff_id）：`<同次 S3 非零 data.diff_record_id>`
 - 状态：尚未保存
-### 分类证据
-- 标签字段：`human_label=<原始值>`（<中文映射>），`model_label=<原始值>`（<中文映射>）
-- 依据比价项：<analysis_process 中直接支持一级分类的比价项名称>
-- SKU/SPU 口径依据：<说明为何 SPU 维度应同或应非同>
-- 证据：<仅写该项左右 value/source、match、reason 与商品快照、提示词或规则之间的关键冲突；最多两句>
-### 结论与建议
-- 一级分类：<重点 Badcase：模型判得过严 / 真实 Badcase：模型判得过宽>
-- 归因枚举：PROMPT_DEFECT
-- 具体原因：提示词缺陷：<缺少、错误、歧义、冲突或作用域不完整的真实位置与因果>
+### 缺失对照
+| 缺失类型 | Badcase 触发信号 | 类目 / 对象 | 真实规则、关系或格式依据 | Prompt 当前实现 | 确认缺失 | 建议补入 |
+|---|---|---|---|---|---|---|
+| <五类枚举之一> | <标签方向、比价项键/match 或全量兜底> | <逐项列出> | <原始依据及转换结果> | <原文和位置或“未实现”> | <缺失内容> | <通用补齐内容> |
+### 结论
 - 是否修改提示词：是
-- 建议与回归：<修改方案、适用范围和回归项>
+- 说明：基础 Prompt 未完整实现上述真实规则或合法映射；本流程不判断该缺失是否导致模型误判。
 ### Diff
 ```diff
 <逐字符复制同次 tool_validate_prompt_skeleton 返回的 data.diff_content>
@@ -92,30 +38,22 @@
 验证集报告：[查看 CDN 报告](<真实链接>)
 ````
 
-无链接时将所选模板最后一行替换为：`验证集报告：当前验证任务未返回 CDN 报告链接`。
+## 未修改
 
-### 输出硬校验
+````markdown
+## Badcase Prompt 缺失检查
+- Agent：`<名称；查不到时写ID>`
+- 任务 / Badcase / 验证集：`<task_id> / <case_id> / <dataset_id>`
+- 任务提示词：`<名称>`（ID：`<ID>`）
+- 检查结果：<`NO_PROMPT_MISSING` / `PROMPT_MISSING_UNCONFIRMED`>
+### 检查证据
+- 核验范围：Step3、类目全部有效比价项、必要品牌映射、必要材质映射、输出格式
+- 对照结果：<未发现缺失；或列明无法取得的规则/Prompt/映射证据>
+### 结论
+- 是否修改提示词：否
+- 说明：<未发现 Prompt 缺失；或证据不足，补齐后重跑>。本流程不继续分析其他 Badcase 原因。
+验证集报告：[查看 CDN 报告](<真实链接>)
+````
 
-发送前逐项检查；任一项不满足就在内部重组回复，不向用户展示错误版本：
-
-1. 第一行必须严格等于 `## Badcase 分析`，模板前后不得添加文字；禁止使用
-   `【Badcase 单条分析结果】`、`【Badcase 整体分析结果】`、自由章节、任务概览、分页统计、Badcase
-   列表、耗时、Token 或“如果需要下一步操作”。单条回复不得出现当前批次、下一批或整合建议入口。
-2. 必须保留所选模板全部字段、三级标题和顺序。左侧页面已展示商品、标签、判断原因、图片和完整
-   维度分析，因此回复禁止重复商品详情、标签、完整快照、全部 `analysis_process` 明细或比价项表格。
-   “分类证据”只允许指出直接支持一级分类的一个关键比价项，并用最多两句话摘录相关左右
-   `value/source`、`match`、`reason` 及其与快照、提示词或规则的关系；无适用项时写“无”。一级分类
-   只能是归因规范中的明确结论之一；未通过门禁时写对应“待核验”结果。只有模型判得过严或过宽且具体原因直接定位到提示词
-   缺陷时使用缺陷模板并写“是”，其余使用非缺陷模板并写“否”。
-3. 输出前必须存在本轮真实验证结果、类目规则、必要映射和 CDN 查询记录；缺任一必需记录只返回
-   该步骤真实错误，禁止输出分析结论。
-4. 模板中的分类证据、一级分类、具体原因、处理建议和是否修改提示词必须逐项来自 `[B4]`、`[B6]`、
-   `[B7]` 已形成的内部分析记录；输出阶段不得重新取证、分类或改变分支。
-5. 非缺陷模板不得出现 Diff、S3 成功话术、确认话术或修改方向；缺陷模板必须原样展示同次 S3 的
-   非零 `data.diff_record_id` 和 `data.diff_content`，否则禁止输出。
-6. CDN 行必须是最后一行；有链接只用真实 `tool_query_cdn_report.data.report_cdn_url`，无链接使用
-   固定无链接文本。
-
-## 确认后
-
-只有提示词缺陷且用户紧邻确认，才执行 `[S5]` 的 EDIT 路径。本轮不再输出 CDN。
+CDN 无链接时替换最后一行。模板前后不得添加文字。缺失模板必须有本轮成功 S3、非零 diff_id 和非空
+Diff；未修改模板禁止出现 Diff、确认话术或非 Prompt 缺失归因。

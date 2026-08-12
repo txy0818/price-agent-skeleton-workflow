@@ -1,67 +1,51 @@
-# Badcase 分类与处理规范
+# Badcase Prompt 缺失判定规范
 
-Badcase workflow 必须完整读取并执行本文件。人工标签是 SKU 维度，模型结论是 SPU 维度；不得直接
-把两者不一致等同于模型错误。每条证据充分的样本必须选择下方一个明确结论。提示词、模型执行、抽取推理、
-业务规则、映射/样本数据和系统链路等只写入“具体原因”，不再设置固定原因枚举。
+Badcase 分析只回答一个问题：验证任务实际使用的 Prompt 是否存在下方五类静态缺失或未同步。这里的
+“缺失”包括“正确实现缺失并被错误实现替代”，因此规则内容错误也命中对应类型。禁止分析或输出
+模型错误、人工标签错误、SKU/SPU 口径、图片识别、来源执行、抽取、逐项匹配、最终聚合及其他原因。
 
-## 统一证据链
+## 唯一检查清单
 
-按以下顺序建立证据，不得跳步或用模型输出自证：
+| `missingType` | 检查内容 | 证据来源 |
+|---|---|---|
+| `STEP3_MISSING` | `Step3` 缺失或未完整写入当前真实 `compareLogic` 对综合判定的例外；例如真实为“货号匹配逻辑”时，不能只保留“任一 match=false 即 different” | 任务 `promptContent` + 当前真实类目规则 + `enums.md` |
+| `COMPARE_ITEM_MISSING` | 生效比价项章节缺失，或该项的来源优先级、匹配逻辑、特殊规则未过滤、转换错误或未完整转换；包括规则修改后 Prompt 未同步 | 任务 `promptContent` + 当前真实类目规则 + 转换指南 |
+| `BRAND_MAPPING_MISSING` | 当前规则包含品牌且本轮过滤后存在合法母子品牌组，但 Prompt 未显式写入或组成员不完整 | 任务 `promptContent` + 本轮品牌关系响应 |
+| `MATERIAL_MAPPING_MISSING` | 当前规则包含材质，但 Prompt 缺少材质引用、附录、固定空结果或本轮合法材质组 | 任务 `promptContent` + 本轮材质关系响应 |
+| `OUTPUT_FORMAT_MISSING` | 固定章节、JSON 示例、字段或字段规则缺失/不符合规范，或 `extracted` 未按全部生效比价项生成 | 任务 `promptContent` + `skeleton-format.md` |
 
-1. **客观商品事实**：先核对左右商品快照中的标题、商详、属性和主图；缺失项保持缺失。
-2. **模型实际处理**：核对 `analysis_process` 中各比价项的 `left/right.value`、`source`、`match`。
-3. **标签与结论**：先原样记录结构化字段，再按固定枚举映射：`humanLabel=1` 为人工同款、`2` 为
-   人工非同款、`3` 为人工无法判断；`modelLabel=1` 为模型同款、`2` 为模型非同款、`3` 为模型
-   无法判断。标签冲突方向只由这两个原始数值决定，不得从顶层理由、逐项结论或文字描述反推；
-   任一字段为 `3` 时固定选择 `LABEL_UNCERTAIN`。
-4. **可信业务约束**：核对本轮真实类目规则和必要映射，并说明验证时规则可能与当前规则不同。
-5. **任务提示词**：逐字核对任务实际使用的 `prompt_content`；不得查询其他提示词替换任务基础版本。
+只允许检查这五类。五类内部的应有内容被写错、截断或被错误内容替代时，视为正确实现缺失；五类之外
+的问题不分析。
 
-## 一级分类、归因与处理唯一映射
+## 结果枚举
 
-`[B6]` 必须将 `[B4]` 的全部逐项 `itemFinding` 按下表映射为唯一一级分类和唯一
-`caseAttribution`，不得分别查找或组合其他分类表：
+| `promptMissingFinding` | 充分条件 | 是否修改 Prompt |
+|---|---|---|
+| `PROMPT_MISSING` | 可信真实规则或本轮合法映射明确要求某内容，基础 Prompt 对应内容缺失或只实现了一部分 | 是 |
+| `NO_PROMPT_MISSING` | 已完成全部必查项对照，基础 Prompt 完整实现真实规则及必要合法映射 | 否 |
+| `PROMPT_MISSING_UNCONFIRMED` | 规则、Prompt、类目或必要映射缺失/失败，无法完成完整对照 | 否，补齐证据后重跑 |
 
-| 标签条件与 SPU 核验结论 | 一级分类 | `caseAttribution` | 直接根因条件 | 是否修改 Prompt | 处理方式 |
-|---|---|---|---|---|---|
-| `humanLabel=1 && modelLabel=2`，且证据确认 SPU 应判同 | 重点 Badcase：模型判得过严 | `PROMPT_DEFECT` | 至少一个待核验项存在可信规则已证实的 `PROMPT_DEFECT_CAUSAL` 或 `PROMPT_DEFECT_NON_CAUSAL` | 是 | 修复已确认的 Prompt 规则差异；执行 `[S3]`，并注明是否已证明是本条直接根因 |
-| `humanLabel=1 && modelLabel=2`，且证据确认 SPU 应判同 | 重点 Badcase：模型判得过严 | `MODEL_ERROR` | 模型来源、抽取、逐项匹配或最终聚合错误直接导致错误否决 | 否 | 记录模型问题及回归项，不生成 Prompt Diff |
-| `humanLabel=2 && modelLabel=1`，且证据确认 SPU 应判非同 | 真实 Badcase：模型判得过宽 | `PROMPT_DEFECT` | 至少一个待核验项存在可信规则已证实的 `PROMPT_DEFECT_CAUSAL` 或 `PROMPT_DEFECT_NON_CAUSAL` | 是 | 修复已确认的 Prompt 规则差异；执行 `[S3]`，并注明是否已证明是本条直接根因 |
-| `humanLabel=2 && modelLabel=1`，且证据确认 SPU 应判非同 | 真实 Badcase：模型判得过宽 | `MODEL_ERROR` | 模型来源、抽取、逐项匹配或最终聚合错误直接导致错误放行 | 否 | 记录模型问题及回归项，不生成 Prompt Diff |
-| `humanLabel=2 && modelLabel=1`，且 SPU 可以判同，冲突仅由 SKU/SPU 口径导致 | 合理的 SKU/SPU 粒度差异 | `SKU_SPU_SCOPE_DIFFERENCE` | 模型执行正确，人工 SKU 标签与模型 SPU 结论口径不同 | 否 | 排除出模型 Badcase，记录口径依据 |
-| 任一明确冲突方向；全部必查项完成，模型结论有充分证据且不能用 SKU/SPU 口径解释人标冲突 | 非模型 Badcase：人工标签疑似错误 | `HUMAN_LABEL_SUSPECTED_ERROR` | 客观证据支持模型结论，但模型不得自行确认人标错误 | 否 | 记录冲突并交标注侧复核 |
-| 任一明确冲突方向；无法确认 SPU 应同/非同或无法确认直接根因 | 待核验（证据不足：暂时无法归因） | `EVIDENCE_INSUFFICIENT` | 决定性规则、Prompt、商品、图片、映射或模型过程缺失/冲突 | 否 | 列出缺失证据，补证后重跑 |
-| `humanLabel=3`、`modelLabel=3`、任一标签非法或缺失 | 待核验（标签不确定） | `LABEL_UNCERTAIN` | 无法形成明确标签冲突方向 | 否 | 复核标签后重跑 |
+每条样本只能选择一个结果。`PROMPT_MISSING` 不要求证明缺失导致本条模型误判；本流程检查的是 Prompt
+同步完整性，不做 Badcase 因果归因。不得使用 `PROMPT_DEFECT`、`MODEL_ERROR`、
+`HUMAN_LABEL_SUSPECTED_ERROR`、`SKU_SPU_SCOPE_DIFFERENCE` 等旧归因枚举。
 
-只要可信规则已明确证明待核验项的 `expectedPriority/expectedMatch` 与任务 Prompt 不一致，
-`PROMPT_DEFECT_CAUSAL` 和 `PROMPT_DEFECT_NON_CAUSAL` 都必须选择 `PROMPT_DEFECT` 并修改 Prompt；二者
-仅用于区分该缺陷是否已证明直接导致本条最终误判。
-`HUMAN_LABEL_SUSPECTED_ERROR` 和 `SKU_SPU_SCOPE_DIFFERENCE` 只允许在规定范围内全部必查项完成且
-不存在阻断性证据缺口时选择。
+## “缺失”的边界
 
-只有完整执行 `[B4]` 规定的核验范围后才允许选择以上明确结论。人标或模型任一侧为“不确定”时，输出“待核验（标签不确定）”
-门禁结果，记录是哪一侧不确定并要求复核为明确的同款/非同款；复核前不得判断模型过严或过宽，也
-不得修改提示词。标签明确但不能确认 SPU 维度应同还是应非同时，输出“待核验（证据不足：暂时无法归因）”
-并列出缺失证据。两种待核验结果都不是明确结论，不得为了完成归因而猜测。
+以下属于 Prompt 缺失：
 
-“待核验（标签不确定）”覆盖全部不确定组合：人工不确定而模型为同款/非同款/不确定，人工为
-同款/非同款而模型不确定，以及双方都不确定。不得根据另一侧的明确标签单独完成分类。
+- `expectedPriority` 中存在合法来源，但 Prompt 对应比价项遗漏该来源；
+- Prompt 只保留部分来源链，特别是冒号后第二段来源链被截断；
+- `expectedMatch`、特殊规则或 `compareLogic` 转换结果未写入或仅写入部分条件；
+- 同一规则在 Prompt 不同章节实现不完整，导致必要条件实际缺失；
+- 本轮关系接口返回且通过类目过滤的必要品牌/材质组未完整写入对应附录。
+- 货号等真实 `compareLogic` 要求的 Step3 例外未同步；
+- `skeleton-format.md` 规定的固定章节、完整 JSON 示例或固定字段规则未完整写入。
 
-## 具体原因与提示词修改门禁
+以下不在本流程分析范围：五类之外的额外规则、文本冲突、措辞歧义、模型未执行已有规则，以及任何商品
+事实或标签判断。五类内部的来源顺序、规则内容或格式与真实规范不一致，仍按“正确实现缺失/未同步”记录。
 
-完成一级分类后再描述具体原因，不设置固定枚举，也不得用原因替换一级分类。至少写清：关键比价项、
-模型实际抽取/匹配、可信规则、提示词对照、直接因果、责任方和回归方式。
+## 输出要求
 
-- “是否修改 Prompt”和处理动作只能复制上方唯一映射表，不得根据一级分类名称重新推断。
-- 只有 `caseAttribution=PROMPT_DEFECT` 才修改 Prompt；其他 `caseAttribution` 一律不修改。
-- 原因在模型未执行、抽取/推理、业务规则、映射/样本数据或解析/系统链路时，不得为了形成 Diff
-  改写成 Prompt 问题。
-- 仅凭 `is_correct=0`、标签方向、模型理由或当前规则与提示词不一致中的任意单项，都不能证明需要
-  修改提示词。
-
-## 分析结果要求
-
-每条结果必须包含：唯一一级分类或待核验结果、SKU/SPU 口径核验依据、关键比价项、具体原因、处理
-动作、回归方案和是否修改提示词。整任务先逐条执行门禁和分类，再统计各明确结论数量、标签不确定数量与
-证据不足数量；不得先看汇总比例反推单条。
-只有“是否修改提示词=是”的模型判得过严或过宽样本进入候选修改合并，其余样本必须排除在 Diff 之外。
+结论只展示缺失对照：比价项或映射、真实规则/关系依据、Prompt 当前原文或位置、缺失内容、建议补入内容。
+还必须简要记录触发该检查的 Badcase 结构化信号，例如“`modelLabel=2` 且数量 `match=false`”；不得展示
+商品事实、SKU/SPU 口径、模型 `analysisProcess` 的左右 value/source 或非 Prompt 问题推测。

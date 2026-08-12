@@ -1,6 +1,6 @@
 ---
 name: price-agent-skeleton-workflow
-description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查询、修改、优化、增删、保存、发布、验证任务和 Badcase，包括“一键分析 Badcase”、单条及整任务分析；也处理对紧邻提示词提案的确认、同意、保存、创建草稿、拒绝或取消。出现上述业务请求或无具体方向的提示词写操作时使用；问候、能力介绍、碎片输入和范围外请求不使用。
+description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查询、修改、优化、增删、保存、发布、验证任务和 Badcase Prompt 缺失检查，包括“一键分析 Badcase”、单条及整任务检查；Badcase 仅检查真实规则或合法映射是否在 Prompt 中缺失，不分析模型、标签或 SKU/SPU 问题。也处理对紧邻提示词提案的确认、同意、保存、创建草稿、拒绝或取消。
 ---
 
 # PriceStudio 提示词工作流
@@ -44,6 +44,9 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
   `validationCaseId>0` 固定进入单条流程，否则固定进入验证任务流程。禁止从用户文字或 input 中的
   `#数字`、Badcase ID、Case ID、任务 ID 或“单条/整任务”等描述提取、补写或覆盖路由快照，也不得
   因用户未在文字中重复 ID 而改走普通 EDIT。
+- Badcase 路由只执行 Prompt 缺失检查：逐类目对照全部有效真实规则、必要品牌/材质映射与验证任务
+  实际 Prompt。禁止分析模型抽取/来源/匹配/聚合错误、人工标签、商品事实、图片或 SKU/SPU 口径；
+  未发现 Prompt 缺失时只报告“未发现 Prompt 缺失”，不得继续寻找其他 Badcase 原因。
 - 写操作即使没有方向也是完整请求，禁止追问方向或索取 Badcase；只按 `promptVersionId` 选路，
   用户使用“初始化”或“修改”等措辞不能改变版本路由。
 
