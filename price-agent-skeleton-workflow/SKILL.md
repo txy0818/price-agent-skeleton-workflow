@@ -36,6 +36,8 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
   不是范围外请求，也不是重新查询页面当前提示词。
 - “确认”“同意”“保存”“创建草稿”等表达 → 提案决策操作；无论是否紧邻都不是范围外请求，
   直接进入 [shared-steps.md](references/shared-steps.md) `[S5]`，入口不提前判断或拒绝。
+  命中后不得执行其他 workflow、查询或自由分析；下一项业务动作必须是 `[S5]` 规定的写入调用。
+  没有本轮写入工具真实响应时，禁止声称提案无效、已失效、版本不匹配或要求重新发起。
 - 用户输入任何 Badcase 相关内容时，直接校验本轮业务上下文的 `validationTaskId` 和
   `validationCaseId`；只有两者都大于 0 才允许继续。任一缺失、为 0
   或为占位符时，不调用任何 Badcase workflow 或 MCP，只回复：“请通过页面的「一键分析 Badcase」
