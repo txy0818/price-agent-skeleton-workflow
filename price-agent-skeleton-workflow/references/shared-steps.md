@@ -152,9 +152,13 @@ Diff 状态或基础版本关联，也不得在调用前输出“上一条不是
 ### 参数与调用
 
 - `prompt_diff_record_id`：紧邻提案同次 S3 的非零 ID。
-- `prompt_version_id`：重新读取本轮上下文 `promptVersionId`，禁止使用提案旧版本或上轮返回的
-  `new_prompt_version_id`。INITIALIZE 中缺失、0 或占位符统一传 `0`；EDIT 必须大于 0，
-  缺失、0 或占位符时停止。
+- `prompt_version_id`：进入 `[S5]` 时，必须先从**当前确认回合注入的业务上下文块**读取
+  `promptVersionId` 原始展开值，并记录为 `confirmationPromptVersionId`。只有该原始值明确存在且为
+  非负整数时才允许继续；不得从上一条提案的“基础提示词 ID”、历史消息、上一轮工具参数、Diff
+  记录、版本名称、`new_prompt_version_id` 或模型记忆补值。EDIT 要求
+  `confirmationPromptVersionId>0`；INITIALIZE 要求其明确等于 `0`。字段未注入、为空、仍为占位符或
+  非法时立即停止，只回复：“当前确认回合未提供有效的 promptVersionId，未执行提示词写入。”
+  禁止调用写入工具，禁止把缺失值自动解释为 0。
 - `source_type`：INITIALIZE=3，EDIT=2。原提案模式只决定此字段。
 - 不传 `prompt_content`；服务端以 Diff 记录正文为准。
 
@@ -163,7 +167,17 @@ Diff 状态或基础版本关联，也不得在调用前输出“上一条不是
 
 只调用一次：
 
-`tool_edit_prompt_skeleton(rule_group_id=上下文.ruleGroupId, prompt_version_id=上下文.promptVersionId, operator=上下文.operator, source_type=<3或2>, prompt_diff_record_id=<紧邻提案Diff ID>)`
+`tool_edit_prompt_skeleton(rule_group_id=上下文.ruleGroupId, prompt_version_id=confirmationPromptVersionId, operator=上下文.operator, source_type=<3或2>, prompt_diff_record_id=<紧邻提案Diff ID>)`
+
+调用前逐字段生成 `writeParameterLedger`：
+
+- `prompt_diff_record_id` 来源必须是上一条可见提案；
+- `prompt_version_id` 来源必须是当前确认回合业务上下文；
+- `rule_group_id`、`operator` 来源必须是当前确认回合业务上下文；
+- `source_type` 只由原提案的 INITIALIZE/EDIT 模式决定。
+
+任一字段来源不符合时禁止调用。尤其禁止因为提案中存在基础版本 ID 就认为当前确认回合也提供了
+`promptVersionId`。
 
 调用返回前禁止产生用户可见文字。调用后只能依据本次真实 `base_resp/data/result/error_msg` 输出：成功
 时使用下方成功模板；业务拒绝时逐字转述真实原因；调用失败或响应不完整时报告真实工具错误。禁止
