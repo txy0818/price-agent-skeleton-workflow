@@ -11,8 +11,7 @@
 入口 workflow 必须在进入本文件前显式锁定且只锁定一个模式：
 
 - `badcase-single-workflow.md` 锁定 `badcaseMode=SINGLE`；
-- `badcase-task-workflow.md` 锁定 `badcaseMode=TASK`；
-- `badcase-description-workflow.md` 锁定 `badcaseMode=DESCRIPTION`。
+- `badcase-task-workflow.md` 锁定 `badcaseMode=TASK`。
 
 本文件只按已锁定模式执行对应查询分支，不得根据样本数量、字段是否存在或用户文字重新推断、选择
 或切换模式。最终输出格式仍只由入口 workflow 定义。
@@ -24,7 +23,7 @@
 
 | 分析信息 | 内容要求 |
 |---|---|
-| 样本标识 | `SINGLE/TASK` 使用 `validation_case_id`；`DESCRIPTION` 记为“用户描述” |
+| 样本标识 | 使用 `validation_case_id` |
 | 类目 | 使用真实 `category_id`；无可信值时保持缺失 |
 | 左右商品事实 | 分别记录标题、属性、商详和主图中的客观事实 |
 | 人工标签与模型结论 | 记录人工标签、模型标签和模型理由 |
@@ -32,11 +31,11 @@
 | 规则与映射依据 | 记录本轮真实类目规则和必要映射 |
 | 规则转换对照 | 逐项记录原始 `infoSource/compareLogic`、`expectedPriority/expectedMatch` 与提示词实际值 |
 | 提示词对照 | 记录基础提示词名称、ID、相关原文和位置 |
-| 唯一一级分类 | 从三类中只选择一个；标签不确定或证据不足时记录待核验结果，不强行分类 |
+| 唯一结论 | 从明确结论中只选择一个；标签不确定或证据不足时记录待核验结果，不强行归因 |
 | 口径与根因证据 | 说明 SKU/SPU 口径事实及证据如何支持该分类和具体原因 |
 | 处理动作 | 说明责任方和具体处理方式 |
 | 回归方案 | 说明修复或补证后如何验证 |
-| 是否修改提示词 | 第 2、3 类且具体原因可直接定位到提示词缺陷时写“是”；其余写“否” |
+| 是否修改提示词 | 模型判得过严或过宽且具体原因可直接定位到提示词缺陷时写“是”；其余写“否” |
 
 人标或模型任一侧为“不确定”时保留原值并进入 `[B5]` 的标签门禁。任何必要字段缺失都保留为空并
 进入 `[B5]` 判断，不得用标题推类目、用模型抽取补商品事实、用当前规则
@@ -44,11 +43,11 @@
 
 ## B0 校验入口模式锁
 
-读取入口已锁定的 `badcaseMode`，只接受 `SINGLE`、`TASK`、`DESCRIPTION` 之一。`SINGLE/TASK` 还
+读取入口已锁定的 `badcaseMode`，只接受 `SINGLE`、`TASK` 之一，并
 必须与入口建立的 `badcaseRouteContext` 一致：上下文 `validationCaseId>0` 只能是 `SINGLE`，否则
 上下文 `validationTaskId>0` 才能是 `TASK`。模式缺失、值不合法或不一致时立即停止并按入口重新
 路由；禁止从用户文字解析 ID、自行补值或继续错误模式。一次分析中不得切换模式；整任务继续分析和
-整合必须保持 `badcaseMode=TASK` 并通过原续批锁。
+整合必须保持 `badcaseMode=TASK` 并确认各批服务端续批身份一致。
 
 ## B1 查询输入并锁定基础版本
 
@@ -61,190 +60,219 @@
 
   禁止附加 `label_filter` 或 `page`。只接受 `base_resp.resp_code=1 && result=1`，并要求响应任务 ID、
   Prompt ID、唯一一条结果的 Case ID 分别与请求一致，且 `is_correct=0`。
-- `TASK`：只从本轮业务上下文取得 `validationTaskId`、`promptVersionId` 和 `operator`，前两个 ID
-  必须大于 0。首批页码为 1，继续分析页码为上一批 `page_no+1`；每页固定 10 条。只使用以下字段调用：
+- `TASK`：首批只从本轮业务上下文取得 `validationTaskId`、`promptVersionId`、`operator` 和
+  `localConversationId`，三个 ID 必须大于 0。首批页码为 1、每页固定 10 条，只使用以下字段调用：
 
-  `tool_query_validation_result(validation_task_id=上下文.validationTaskId, label_filter=3, prompt_version_id=上下文.promptVersionId, operator=上下文.operator, page={page_no:<当前批次页码>,page_size:10})`
+  `tool_query_validation_result(validation_task_id=上下文.validationTaskId, label_filter=3, prompt_version_id=上下文.promptVersionId, operator=上下文.operator, conversation_id=上下文.localConversationId, page={page_no:1,page_size:10})`
 
-  禁止传 `validation_case_id`。只接受 `base_resp.resp_code=1 && result=1`，并要求响应任务 ID、Prompt ID
-  与请求一致，所有结果均为 `is_correct=0`；继续分析还必须通过入口维护的 `badcaseTaskLock`。
-- `DESCRIPTION`：只使用本轮业务上下文的 `promptVersionId`，要求大于 0；按
-  [base-version-policy.md](base-version-policy.md) 精确查询当前提示词，并要求响应 Prompt ID 与上下文
-  一致。左右商品事实、人工标签、模型结论、理由和模型过程只取用户本轮输入，缺失项保持为空；
-  禁止从用户自由文本接受 Prompt ID 替换页面上下文。
+  禁止传 `validation_case_id` 和 `continuation_token`。只接受 `base_resp.resp_code=1 && result=1`，并要求
+  响应任务 ID、Prompt ID 与请求一致，所有结果均为 `isCorrect=0`。`data.data.page.hasMore=true`
+  时还必须存在非空 `data.data.continuationToken`；`hasMore=false` 时该字段必须为空。
 
-`SINGLE/TASK` 只按以下精确路径读取，禁止根据字段含义猜测路径：
+  继续分析时，当前用户消息必须紧邻上一条成功的整任务阶段分析助手回复；中间出现任何其他用户
+  消息后，上一批 Token 永久失去续批资格。通过紧邻门禁后，只能从该上一批成功工具响应取得完整
+  `data.data.continuationToken`；该 Token 已由上一批固定模板原样展示，但续批时仍只能从紧邻上一批
+  成功工具响应取得，不得从用户粘贴内容或更早历史回复恢复。不得解析、改写或根据历史页码生成。
+  仅使用以下三个字段调用：
 
-- 任务：`data.validation_task_id`、`data.dataset_id`、`data.validation_summary_json`；
-- 基础提示词：`data.prompt_version.{prompt_version_id,rule_group_id,version_no,version_name,
-  version_status,prompt_content}`；
-- 样本：`data.results[].{validation_result_id,validation_case_id,category_id,source_item_id,
-  candidate_item_id,source_title,candidate_title,human_label,model_label,is_correct,reason,
-  analysis_process,radar_task_id,radar_task_url,source_item_json,candidate_item_json}`；
-- `TASK` 分页：`data.page.{page_no,page_size,total,has_more}`。
+  `tool_query_validation_result(conversation_id=上下文.localConversationId, operator=上下文.operator, continuation_token=<上一批服务端原样值>)`
 
-`dataset_id` 和每条 `category_id` 必须大于 0；上下文 `ruleGroupId>0` 时，响应
-`data.prompt_version.rule_group_id` 必须与其一致。继续分析还要求响应 `dataset_id`、`rule_group_id`
-与 `badcaseTaskLock` 一致。响应没有 `agent_id`，不得声称本接口校验了 Agent。三种模式均要求
-`prompt_content` 非空；响应通过后统一锁定 `selectedPromptVersionId=上下文.promptVersionId`、
+  续批禁止传 `validation_task_id`、`prompt_version_id`、`label_filter`、`validation_case_id` 或 `page`。
+  非紧邻，或 Token 缺失、空、过期、上下文不匹配、工具失败时立即停止，不得重试、猜页码、恢复
+  历史 Token 或改用历史 ID；要求用户通过页面“一键分析 Badcase”重新发起。
+
+`SINGLE/TASK` 按工具真实响应的 camelCase 路径读取。外层成功门禁为
+`result=1 && data.baseResp.respCode=1`，业务数据根节点为 `data.data`：
+
+- 任务：`data.data.validationTaskId`、`data.data.datasetId`、`data.data.validationSummaryJson`；
+- 基础提示词：`data.data.promptVersion.{promptVersionId,ruleGroupId,versionNo,versionName,
+  versionStatus,promptContent}`；
+- 样本：`data.data.results[].{validationResultId,validationCaseId,categoryId,sourceItemId,
+  candidateItemId,sourceTitle,candidateTitle,humanLabel,modelLabel,isCorrect,reason,
+  analysisProcess,radarTaskId,radarTaskUrl,sourceItemJson,candidateItemJson}`；
+- `TASK` 分页：`data.data.page.{pageNo,pageSize,total,hasMore}`、`data.data.continuationToken`。
+
+`analysisProcess`、`sourceItemJson`、`candidateItemJson` 都是 JSON 字符串，必须先解析后读取；解析失败
+保留原始字符串并进入 `[B5]`，禁止把字符串当成已解析对象访问。下文为便于描述，将解析结果分别记为
+`parsedAnalysis`、`parsedSourceItem`、`parsedCandidateItem`。
+
+`datasetId` 和每条 `categoryId` 必须大于 0；上下文 `ruleGroupId>0` 时，响应
+`data.data.promptVersion.ruleGroupId` 必须与其一致。续批的任务、Prompt、验证集、规则组、操作人、会话和页码
+由服务端 Token 校验；响应仍必须与首批阶段记录的 `validationTaskId`、`promptVersionId`、`datasetId`
+和 `ruleGroupId` 一致。响应没有 `agentId`，不得声称本接口校验了 Agent。两种模式均要求
+`promptContent` 非空；响应通过后统一锁定 `selectedPromptVersionId=上下文.promptVersionId`、
 `writeMode=EDIT`，该正文就是分析基础版本，不再查询其他提示词，也不得用响应 Prompt ID 覆盖上下文
 值。任何必需 ID、正文、规则组或请求/响应一致性校验失败时立即停止。
 
 ## B2 规范化样本
 
-逐条整理内部分析记录中的商品事实、标签、理由和模型分析过程。`SINGLE/TASK` 必须
-校验 `is_correct=0`；`DESCRIPTION` 必须保留用户没有提供的字段为空。先按 Case 去重再分析，同一
+逐条整理内部分析记录中的商品事实、标签、理由和模型分析过程，必须
+校验 `is_correct=0`。先按 Case 去重再分析，同一
 Case 不得因重复分页被统计两次。
 
-## B3 查询规则、必要映射与报告
+标签方向只能根据结构化字段原始数值确定，不得从 `reason`、`analysis_process` 或自然语言反推：
 
-- `SINGLE`：只使用 `data.results[0].category_id` 按 `[S2]` 查询该类目规则与规则实际需要的映射；
+| 字段 | 原始值 | 含义 |
+|---|---:|---|
+| `humanLabel` | `1` | 人工标签：同款 |
+| `humanLabel` | `2` | 人工标签：非同款 |
+| `humanLabel` | `3` | 人工标签：无法判断 |
+| `modelLabel` | `1` | 模型结论：同款 |
+| `modelLabel` | `2` | 模型结论：非同款 |
+| `modelLabel` | `3` | 模型结论：无法判断 |
+
+每条内部分析记录必须同时保留并展示 `humanLabel=<原始值>`、`modelLabel=<原始值>` 及其中文映射。
+`humanLabel` 不为 `1/2/3`、`modelLabel` 不为 `1/2/3` 或字段缺失时，记录非法/缺失原值并进入 `[B5]`，
+禁止自行补值。`humanLabel=3` 或 `modelLabel=3` 时，固定进入“待核验（标签不确定）”，不得继续
+建立逐项证据或判断 Prompt、模型、人工标签及 SKU/SPU 归因。
+
+## B3 查询规则与报告
+
+- `SINGLE`：只使用 `data.data.results[0].categoryId` 按 `[S2]` 查询该类目规则；
   随后调用
   `tool_query_cdn_report(validation_task_id=上下文.validationTaskId, prompt_version_id=上下文.promptVersionId, operator=上下文.operator)`，
   只读取 `data.report_cdn_url` 和 `data.report_summary_json`。
-- `TASK`：提取本页 `data.results[].category_id`，去重后逐类目按 `[S2]` 查询规则与必要映射，禁止
+- `TASK`：提取本页 `data.data.results[].categoryId`，去重后逐类目按 `[S2]` 查询规则，禁止
   跨类目混用；随后按同一任务和 Prompt ID 调用上述 `tool_query_cdn_report`。
-- `DESCRIPTION`：仅从本轮可信业务上下文或用户提供的可验证结构化字段取得 `categoryId`；存在时
-  按 `[S2]` 查询争议范围内的规则与必要映射，不存在时保持规则/映射为空并进入 `[B5]`；不查询 CDN。
 
-三种模式都禁止从标题、商品 JSON、图片、提示词或模型输出猜类目。规则/映射查询不得重复；CDN
+两种模式都禁止从标题、商品 JSON、图片、提示词或模型输出猜类目。规则查询不得重复；CDN
 链接为空不阻断分析，报告摘要不能替代逐条验证结果。规则查询成功后必须完整读取
 [rule-transformation-guide.md](rule-transformation-guide.md) 和 [enums.md](enums.md)，供 `[B4]`
-计算每个争议比价项的标准期望值；不得把规则原文未经转换直接与提示词比较。
-
-必要映射按争议项和真实 `compareItem` 双重门控：争议项为“材质”且本轮规则确实包含“材质”时，
-必须按 `[S2]` 调用 `radar_query_material_relation` 并保留本轮原始响应、过滤后的合法材质组及节点证据；
-争议项为“品牌”且本轮规则确实包含“品牌”时，必须调用 `radar_query_brand_relation` 并保留本轮原始
-响应及过滤后的合法品牌组。
-真实 `compareItem` 不包含对应项时禁止为了分析而查询或引用该映射。工具失败、响应缺失或无法确认
-关系时保留为证据缺口，不得用模型常识补映射。
+计算 `[B4]` 标签冲突表规定范围内每个比价项的标准期望值；不得把规则原文未经转换直接与提示词比较。
 
 ## B4 建立逐项证据表
 
-本步的核心目标是先确认 Badcase 是否由提示词缺陷导致，而不是先解释模型为什么判错。对每个争议比价项，
-必须依次完成“规则期望 → 提示词实现 → 客观证据 → 模型执行”四步校验，先判断提示词是否正确、完整且内部一致，
-通过后才允许将错误归因为模型执行。
+先根据明确的人工标签与模型标签确定核验范围，不得预先猜测“争议比价项”。本表只决定查哪些项，
+不直接决定整条样本的最终归因：
 
-对每个争议比价项都必须先校验该项的“优先级”和“匹配条件”，再核验左右商品证据和模型执行。
-不得因模型已输出 `match` 或最终标签而跳过规则、提示词或图片核验。每项固定按以下顺序建立
-四层对照，字段不得合并或省略：
+| 标签冲突 | 必须核验的比价项 | 核验目标 |
+|---|---|---|
+| `humanLabel=2`、`modelLabel=1`（人标非同、模型标同） | 当前类目规则中的所有有效比价项；逐项寻找模型遗漏的不匹配项 | 查找足以使 SPU 判非同的决定性差异，并确认模型是否漏抽、漏判或错误放行 |
+| `humanLabel=1`、`modelLabel=2`（人标同、模型标非同） | 解析后的 `parsedAnalysis` 中所有 `match=false` 的比价项；不得只选其中一个 | 逐项确认模型用于否决同款的事实、来源、匹配和聚合是否成立 |
 
-1. **客观事实层**：左/右快照中商品标题、商品属性、主图分别提供的事实及精确位置；人工/模型标签。
-   “买一发三”等数量事实只有在快照标题、属性或主图中明确出现时才能记录，禁止根据模型
-   `value`、促销常识或最终标签反推。
-2. **规则期望层**：原始 `compareItem`、原始 `infoSource`、原始 `compareLogic`、该项全部特殊规则，
-   以及严格按 [rule-transformation-guide.md](rule-transformation-guide.md) 和 [enums.md](enums.md)
-   计算出的 `expectedPriority`、`expectedMatch`。来源过滤必须扫描原始 `infoSource` 的全部片段，
-   包括冒号后或第二段来源链；同一规范来源重复时去重但不得截断后续合法来源。
-3. **提示词实现层**：基础提示词中该比价项的实际优先级、全部匹配条件及原文位置；分别与
-   `expectedPriority`、`expectedMatch` 做精确对比，明确记录缺失来源、来源重排、额外来源、规则遗漏、
-   规则增写或完全一致。禁止只写笼统的“规则与映射依据”。
-4. **模型执行层**：`analysis_process` 中左/右 `value/source`、`match`、理由和最终模型标签；与客观
-   事实层并列比较，确认模型是否读取了规则允许的真实来源。禁止用模型自己的抽取结果证明商品事实。
+### B4.1 逐项结果枚举
 
-四层对照后必须为该项单独记录：`expectedPriority`、提示词实际优先级、`expectedMatch`、
-提示词实际匹配条件、左值/来源/原始证据、右值/来源/原始证据、图片核验结果、模型原判定和
-核验后判定。优先级或匹配条件存在差异时，必须先写明差异，不得先归因为模型执行问题。
+每个待核验比价项完成规则、Prompt、商品事实、来源优先级、图片、模型抽取和匹配校验后，必须填写
+唯一 `itemFinding`；不得直接在逐项证据表中填写“模型错误 / Prompt 缺陷 / 人工标签疑似错误”等整条归因：
 
-### 提示词问题判定门禁
+| `itemFinding` | 判定条件 | 后续动作 |
+|---|---|---|
+| `ITEM_OK` | Prompt 正确实现规则，模型取值、来源和 `match` 均与客观证据及规则一致 | 保留为已核验正常项 |
+| `PROMPT_DEFECT_CAUSAL` | Prompt 与规则不一致，且“不调用接口的规则因果复核”确认该差异会改变最终错误结论 | 记录直接 Prompt 根因，交 `[B6]` 归因为 Prompt 缺陷 |
+| `PROMPT_DEFECT_NON_CAUSAL` | Prompt 与规则不一致，但该差异未改变本项有效结论、仍有其他合法决定项，或不能证明会改变最终结论 | 记录伴随 Prompt 缺陷，不得仅凭本项修改 Prompt |
+| `MODEL_SOURCE_ERROR` | Prompt 来源优先级正确，但模型跳过有明确值的更高优先级来源、使用不允许来源，或 `source` 缺失/无法归一且实际路径可确认错误 | 记录模型来源执行错误 |
+| `MODEL_EXTRACTION_ERROR` | Prompt 已允许正确来源，但模型漏抽或错抽客观值 | 记录模型抽取错误 |
+| `MODEL_MATCH_ERROR` | 左右值及来源正确，但模型 `match` 未按规则、特殊条件或合法映射计算 | 记录模型逐项匹配错误 |
+| `EVIDENCE_INSUFFICIENT` | 图片、商品事实、规则、Prompt、映射或模型过程缺失、模糊或冲突，无法完成本项判断 | 列明缺失证据，交 `[B5]` 判断是否阻断整条归因 |
 
-每个争议项在读图或评价 `analysis_process` 之前，必须先完成以下判定：
+`itemFinding` 只描述单个比价项。人工标签是否错误、是否属于 SKU/SPU 维度差异、模型最终聚合是否错误，
+都不是逐项结果，必须在全部必查项完成后由 `[B6]` 选择唯一 `caseAttribution`。
 
-1. 比较 `expectedPriority` 与提示词实际优先级，检查是否存在来源缺失、多出、顺序错误或同一项在不同章节定义不一致；
-2. 比较 `expectedMatch` 与提示词实际匹配条件，检查是否存在条件缺失、错误、额外限制或前后冲突；
-3. 只要发现上述差异，必须先记录“提示词存在缺陷”，再结合本条左右客观证据和模型路径判断该缺陷是否实际导致误判；
-4. 提示词差异实际导致模型漏抽取、选错来源、错匹配或错聚合时，根因记为“提示词问题”且“是否修改提示词=是”，
-   不得因模型未自行弥补提示词缺陷而归因为模型错误；
-5. 提示词存在差异，但模型已通过其他合法来源取得相同事实且该差异未导致本条误判时，记录“提示词存在缺陷但不是本条直接根因”，
-   继续查找本条直接根因；不得为了修复本条 Badcase 生成无因果关系的提示词修改；
-6. 只有 `expectedPriority/expectedMatch` 与提示词实现精确一致，且提示词内部无冲突时，才进入后续模型来源优先级执行异常判定。
+### B4.2 执行顺序
 
-### 左右侧证据绑定校验
+对每条样本严格按下表执行。除 Prompt 和规则外，字段路径均相对于当前
+`data.data.results[当前样本]`；不得跳步、提前归因或根据字段含义猜测其他路径：
 
-评价 `analysis_process` 前必须先锁定左右商品的真实证据边界：左侧只对应
-`source_title/source_item_json/source_item_id`，右侧只对应
-`candidate_title/candidate_item_json/candidate_item_id`；图片同样必须按所属商品分侧绑定。
+| 顺序 | 读取字段或工具结果 | 必须执行 | 产出 |
+|---:|---|---|---|
+| 1 | `humanLabel`、`modelLabel` | 原样记录数值并按 `[B2]` 枚举映射；任一为 `3` 或非法/缺失时停止逐项核验 | 标签方向或 `LABEL_UNCERTAIN` |
+| 2 | 解析 `analysisProcess` 得到 `parsedAnalysis`；实际结构为 `Map<比价项名,{left,right,match,reason}>` | `humanLabel=2 && modelLabel=1` 时以真实类目规则的全部有效 `compareItem` 为范围；`humanLabel=1 && modelLabel=2` 时筛选 `parsedAnalysis` 中全部 `match=false` 的键 | 完整待核验比价项清单 |
+| 3 | 本轮真实类目规则中的 `compareItem/infoSource/compareLogic/特殊规则`；必要时读取品牌或材质映射工具响应 | 按待核验项查询必要映射，并按规则转换指南计算标准值 | 每项 `expectedPriority/expectedMatch` 及合法映射 |
+| 4 | `data.data.promptVersion.promptContent` | 定位每个待核验项的优先级、匹配条件及原文位置，与标准值精确对比 | Prompt 实际优先级/匹配条件及差异 |
+| 5 | 左侧 `sourceTitle` 和解析后的 `parsedSourceItem.{detail,imageUrl,brand,shopName,categoryName}`；右侧 `candidateTitle` 和 `parsedCandidateItem.{detail,imageUrl,brand,shopName,categoryName}` | 按规则和 Prompt 允许来源读取标题、属性/商详、品牌及必要图片；图片必须按图片补充校验执行 | 左右客观值、来源、原始证据及歧义 |
+| 6 | 当前比价项 `parsedAnalysis[比价项名].{left.value,left.source,right.value,right.source,match,reason}` | 按待核验比价项名称精确取同名键；将模型值、来源和匹配结果与步骤 3～5 并列比较 | 来源执行、抽取和逐项匹配核验结果 |
+| 7 | 步骤 3 的正确规则与步骤 5 的客观证据 | 重新计算该项标准左右值及核验后 `match`，不得沿用模型值自证 | 唯一 `itemFinding`、直接根因或伴随异常 |
+| 8 | 全部必查项的 `itemFinding`、核验后 `match`、顶层 `modelLabel` 和 `reason` | 检查逐项结果能否支持顶层模型结论；再按下方 B4.3 分支判断并交 `[B5]`、`[B6]` | 唯一 `caseAttribution` 或待核验结果 |
 
-对每个比价项的左右 `value/source` 逐侧执行以下校验：
+`analysisProcess` 只表示模型实际处理过程，只允许用于步骤 2 的否决项筛选和步骤 6 的模型执行核验；
+不得使用其中的 `value/source/reason` 代替步骤 5 的左右商品客观证据。`reason` 只作辅助说明，不能覆盖
+结构化的比价项键、`left/right.value/source` 和 `match`。
 
-1. `value` 必须能在同侧 `source` 声称的标题、属性或图片中定位到原始证据；
-2. 若该值只存在另一侧，则记录“左右侧证据错绑”，同时记录“`source` 归属错误”；
-3. 发生串侧时，不得使用错绑后的值证明该侧商品事实，也不得将该现象归因为提示词优先级缺陷；
-4. 必须用左右快照的真实证据分别重建两侧值，再继续图片、优先级和匹配校验。
+### B4.3 逐项判断树
 
-例如“买1送1”只出现在左侧标题，但 `analysis_process` 将右侧值记为 `2`且
-`source=商品标题`，必须先判定“左右侧证据错绑”，不得直接使用该模型值进行数量匹配。
+完成 B4.2 后，严格执行下表。每一行都必须写出“比较对象、比较结果、命中分支”，不得只给最终枚举：
 
-### 图片证据通用校验
+| 判断顺序 | 比较对象 | 命中条件 | 结果或下一步 |
+|---:|---|---|---|
+| 1 | 真实规则的 `expectedPriority/expectedMatch` vs `promptContent` 实际实现 | 不一致 | 先记录 Prompt 差异，再执行步骤 2 的规则因果复核 |
+| 2 | 用正确规则、已确认客观值计算本项标准 `match`，并按任务 Prompt 明确的 Step3 规则聚合全部已核验项 | 标准最终结论与当前错误 `modelLabel` 不同，且与证据支持的正确方向一致 | `PROMPT_DEFECT_CAUSAL` → 整条 `PROMPT_DEFECT`；否则记 `PROMPT_DEFECT_NON_CAUSAL` 并继续 |
+| 3 | 左右客观事实 vs `parsedAnalysis[比价项名].left/right.value/source` | Prompt 正确，但模型来源选择、漏抽或错抽导致值不一致 | `MODEL_SOURCE_ERROR` 或 `MODEL_EXTRACTION_ERROR` |
+| 4 | 按正确规则计算的标准 `match` vs `parsedAnalysis[比价项名].match` | 模型值/来源正确，但 `match` 不一致 | `MODEL_MATCH_ERROR` |
+| 5 | 全部核验后 `match` 的 Step3 聚合结果 vs 顶层 `modelLabel` | 逐项均正确但顶层结论不一致 | 模型聚合错误 → 整条 `MODEL_ERROR` |
+| 6 | 全部必查项、SPU 规则和人工 SKU 标签 | 模型 SPU 结论正确，差异仅来自 SKU/SPU 判定口径 | `SKU_SPU_SCOPE_DIFFERENCE` |
+| 7 | 全部必查项、SPU 规则和人工标签 | 模型结论有充分证据，且不能用 SKU/SPU 口径解释人标冲突 | `HUMAN_LABEL_SUSPECTED_ERROR`，交标注侧复核 |
+| 8 | 以上任一步所需的决定性规则、Prompt、商品、图片、映射或模型过程 | 缺失、模糊、解析失败或冲突未解决 | `EVIDENCE_INSUFFICIENT` |
 
-任一争议比价项满足以下任一条件时，必须进一步读取左右图片，不得只复述模型 `source`：
+模型错误分支也必须检查是否改变最终结论：能改变才归因为 `MODEL_ERROR`，否则只记伴随异常。
 
-- `expectedPriority` 或提示词实际优先级包含主图、主图文字、外包装文字、详情图或其他图片来源；
+### B4.4 操作细则
+
+#### 来源优先级
+
+对每个待核验比价项，无论优先级是否包含图片，都必须结合 `expectedPriority`、提示词实际优先级和
+`parsedAnalysis[比价项名]` 中左右侧实际记录的 `source`，逐侧执行来源优先级校验：
+
+1. 将左右侧 `source` 分别归一为提示词优先级中的规范来源，明确模型实际使用的来源层级；
+2. 按提示词实际优先级从高到低检查位于实际 `source` 之前的所有来源，并逐项记录“有明确有效值/
+   无有效值/来源缺失、模糊或不可读”；
+3. 更高优先级来源存在明确有效值，模型却使用低优先级来源时，记录“来源优先级执行异常”，并列出
+   被跳过的高优先级值和模型实际采用的低优先级值；
+4. 所有更高优先级来源均无有效值时，模型降级使用当前来源合法；
+5. 任一更高优先级来源缺失、模糊或无法确认时，不得判定模型来源选择正确或错误，保留证据缺口并
+   进入 `[B5]`；
+6. `source` 缺失、无法归一或不属于提示词允许来源时，记录“模型来源信息异常”；
+   无法确认实际取值路径时进入 `[B5]`；
+7. 左右两侧必须分别完成上述校验，不得只检查其中一侧。
+
+例如某项提示词实际优先级为 `主图>商品标题`，模型 `source=商品标题`：必须先检查主图。
+若主图已清晰提供有效值，则确认模型跳过主图并错用标题，属于“来源优先级执行异常”；若主图无有效
+信息，则使用标题属于合法降级；若主图缺失或无法看清，则进入证据不足，不得二选一猜测。
+
+#### 图片
+
+任一待核验比价项满足以下任一条件时，除完成上述通用来源优先级校验外，还必须读取对应图片：
+
+- `expectedPriority` 或提示词实际优先级包含 SKU 图、主图、主图文字、外包装文字、详情图或其他图片来源；
 - 标题、属性或商详不能确认该项事实，但图片可能提供决定性证据；
-- `analysis_process` 声称来源为图片，或跳过了优先级更高的图片来源；
-- 标题、属性、图片或模型抽取值之间存在冲突。
+- 模型 `source` 为图片来源；
+- 图片与标题、属性、商详或模型抽取值存在冲突。
 
 图片核验必须分别记录左右侧的：图片类型及位置、可见原始文字/OCR、可辨识的商品主体或外观特征、
 对应比价项的观察值、是否清晰可信及歧义。不得只写“已看图”或“主图显示”，也不得用“常规单品”
 “通常为 1 件”等常识代替图片证据。
 
-图片核验后还必须结合该比价项在 `analysis_process` 中左右侧实际记录的 `source`，逐侧执行来源优先级校验：
+#### 不调用接口的规则因果复核
 
-1. 将该侧 `source` 归一为提示词优先级中的规范来源，明确模型实际选用了哪一级；
-2. 按提示词实际优先级从高到低检查所有位于该 `source` 之前的来源，并分别记录“有明确值/无有效值/
-   缺失或不可读”；
-3. 任一更高优先级来源已清晰提供该比价项的有效值，模型却选用低优先级 `source` 时，明确记录“来源优先级执行异常”，
-   并同时列出被跳过的高优先级值和模型实际采用的低优先级值；
-4. 只有所有更高优先级来源都无有效值时，才可判定模型降级使用当前 `source` 合法；
-5. `source` 声称的来源中不存在模型记录的值，或该值实际只存在于另一来源时，单独记录“`source` 归属错误”；
-6. 更高优先级图片缺失、模糊或无法确认是否含有效值时，不得确认模型跳过该来源；保留证据缺口并进入 `[B5]`。
+本步骤不是重新运行模型或调用验证接口，只做确定性规则推导：
 
-例如某项提示词实际优先级为 `主图>商品标题`，`analysis_process.source=商品标题`：必须实际检查主图。
-若主图已清晰显示该项信息，则确认模型跳过主图并错用标题，属于“来源优先级执行异常”；若主图无有效信息，
-则使用标题属于合法降级；若主图无法看清，则进入证据不足，不得二选一猜测。
+1. 使用步骤 B4.2 已确认的左右客观值和正确 `expectedMatch`，计算该项标准 `match`；
+2. 对其他必查项也只使用已核验的标准 `match`；
+3. 严格读取任务 `promptContent` 中明确的 Step3 聚合规则。本例接口为“全部 `match=true` → same；
+   任一 `match=false` → different”，不得自行发明其他聚合逻辑；
+4. 用标准 `match` 集合推导标准最终结论，并与当前 `modelLabel` 比较；
+5. Prompt 差异使标准最终结论从当前错误方向改变为证据支持的正确方向时，记
+   `PROMPT_DEFECT_CAUSAL`；结果不变时记 `PROMPT_DEFECT_NON_CAUSAL`；任一客观值、标准 `match`、
+   其他决定项或聚合规则无法确认时记 `EVIDENCE_INSUFFICIENT`。
 
-### Prompt 修改反事实门禁
-
-发现提示词差异后，必须用正确的 `expectedPriority/expectedMatch` 进行一次仅用于归因的反事实重算，
-不得只证明“文本有差异”就决定修改提示词：
-
-1. 先按正确规则重新抽取左右值、来源并计算争议项 `match`；
-2. 再保留其他全部生效比价项的客观核验结果，重新执行 Step3 聚合；
-3. 只有修正后争议项由错转对、不再存在其他合法否决项，且最终结果会由错误结论改为正确结论时，才可确认
-   该提示词缺陷是本条 Badcase 的直接根因并记录“是否修改提示词=是”；
-4. 修正后仍有其他合法 `match=false`、最终结果不变，或结果是否改变无法确认时，只能记录“提示词存在缺陷，但不足以证明是本条
-   最终误判的直接根因”，不得因本条样本生成提示词修改。
-
-反事实重算只能使用真实规则、已锁定的提示词与左右客观证据，不得假定模型会自动修正串侧、OCR 或推理错误。
-
-### 直接根因与伴随异常
-
-同一样本可以同时记录多个有证据的异常，但必须区分：
-
-- **直接根因**：通过反事实门禁，修正后能够改变本条最终错误结论的原因；
-- **伴随异常**：本条确实存在，但单独修正不能证明最终结果会改变的问题。
-
-`[B6]` 仍必须选择唯一一级分类，处理动作和“是否修改提示词”只由直接根因决定；伴随异常不得被省略，
-也不得反过来覆盖直接根因。
+不得假定“Prompt 修正后模型一定会正确抽取”，也不得把本步骤描述成回归验证。直接根因是能够通过
+上述确定性推导改变最终错误结论的问题；不能改变最终结论的问题只记录为伴随异常。
 
 图片能够清晰支持该项事实且不与更高优先级来源冲突时，将观察值作为客观事实参与匹配判定；
 图片缺失、模糊、裁切不全、主体无法定位或与其他来源冲突时，必须保留冲突并进入 `[B5]`，不得猜测。
 
+#### 数量
+
 **数量项的图片核验**：除读取“3 件装”“拍一发三”等主图文字外，还必须统计图中清晰、独立可辨识的
-商品实物个数，并写明计数对象及计数结果，例如“右侧主图可辨识 3 个独立商品实物，因此主图实物计数为 3”。
-若画面可能是展示陈列、赠品、包装正反面、口味/款式示意、多角度拼图或重复渲染，必须记录歧义，不得直接等同于
-实际售卖数量。标题数量、主图文字和主图实物计数一致时可直接参与匹配判定；存在冲突或歧义时保留各自值与来源，
-不得以“常规单品”补成 `1`。只有按优先级证明同侧商品标题、主图文字和主图实物计数均无有效数量信息时，
-才允许使用规则定义的默认数量，并必须写明已排查的来源。
+商品实物个数并记录歧义。只有按优先级证明同侧标题、主图文字和主图实物计数均无有效数量信息时，
+才允许使用规则定义的默认数量；不得以“常规单品”或常识补成 `1`。
 
-任何提示词修改都必须是 `expectedPriority/expectedMatch` 或通用证据约束的忠实实现，禁止将某条样本中的品牌、商品名、
-“买1送1”、“两支”或其他具体事实硬编码进通用提示词。
+#### 品牌和材质映射
 
-品牌和材质还必须增加“映射传递链”核验：
+品牌和材质必须增加映射传递链核验：
 
 - **材质**：先确认左右客观材质；再在本轮材质关系响应中逐项定位节点，只有同一真实 `parentId`
   下的直接 `isLeaf=true` 叶子才属于同组；然后检查该合法组是否完整写入基础提示词材质附录；最后
-  检查模型 `analysis_process` 是否抽取了两侧材质并实际应用该组。依次区分“关系库没有该组”
+  检查模型 `parsedAnalysis` 是否抽取了两侧材质并实际应用该组。依次区分“关系库没有该组”
   “关系库有但提示词省略”“提示词已有但模型省略某侧材质”“模型已抽取但未应用映射”。禁止因为
   两个名称都出现在关系响应中就认定同组。
 - **品牌**：先确认左右客观品牌；再检查本轮母子品牌响应是否存在该真实关系且通过当前类目过滤；
@@ -252,51 +280,39 @@ Case 不得因重复分页被统计两次。
   依次区分“关系库没有该组”“关系库有但提示词省略”“提示词已有但模型省略某侧品牌”“模型已
   抽取但未应用映射”。同集团但不在本轮真实关系中的品牌不得凭常识互认。
 
-除品牌/材质映射外，每条争议项还必须按顺序排查以下异常来源并只记录有证据支持的项：
-
-1. **商品事实或图片识别问题**：快照缺字段、图片模糊、OCR 错字、主体定位错误；
-2. **来源转换问题**：合法来源被遗漏、重排或补入，冒号后第二段来源链被截断；
-3. **提示词规则问题**：特殊规则遗漏或错误、`compareLogic` 未展开/展开错误、模型常识被擅自加入；
-4. **模型抽取问题**：提示词已允许该来源，但模型漏抽、错抽、左右值或 `source` 填错；
-5. **逐项匹配问题**：抽取值正确但 `match` 未按特殊规则、兜底或映射计算；
-6. **Step3 聚合问题**：逐项 `match` 正确但最终 `result` 错误，尤其检查货号例外；
-7. **规则或版本不一致**：分析使用的当前规则、关系或 Prompt 与验证任务实际快照不一致；
-8. **标签及 SKU/SPU 口径问题**：人工标签不确定、模型标签不确定，或属于合理粒度差异。
-
-同一条可能同时存在多个现象，但 `[B6]` 仍须依据最直接的错误因果链选择唯一一级分类；无法确定
-哪一环导致最终错误时进入证据不足，不得把所有可能原因都写成已确认根因。
-
-例如原始数量来源为
-`比价维度>sku图文字说明>商品标题>商品内容物数量：sku标题>商品外包装文字说明>sku图文字说明>商品标题>主图文字说明>详情图文字说明`
-时，扫描全部片段并稳定过滤后必须得到`expectedPriority=商品标题>主图`：两个“商品标题”归一后
-去重，`主图文字说明`归一为`主图`，其余来源删除。若提示词只写`商品标题`，证据表必须记录
-“缺失主图来源”，不得判为规则同步完成。本例只说明转换算法，不预设任何样本的数量事实或根因。
-
-最后单独记录因果结论：提示词差异是否实际导致本条模型漏抽取、错匹配或错判。存在提示词差异但
-模型已从其他合法来源正确取得同一事实时，只能记录“提示词存在缺陷但尚不能证明是本条误判原因”；
-不得仅凭文本不一致直接归因为提示词问题。
+任何提示词修改都必须忠实实现 `expectedPriority/expectedMatch` 或通用证据约束，禁止把单条样本的
+品牌、商品名、“买1送1”“两支”等具体事实硬编码进通用 Prompt。
 
 ## B5 证据充分性门禁
 
 先检查标签：人标或模型任一侧为“不确定”时，输出“待核验（标签不确定）”，记录不确定侧并停止
 分类和提示词修改。标签明确后，再判断能否确认商品事实、模型实际处理、可信规则、
 `expectedPriority/expectedMatch` 与提示词的精确差异及错误因果链。缺少决定性图片、属性、类目、规则
-或结构化模型过程时，输出“待核验（证据不足）”并停止分类；不得为了形成修改建议把未知项写成事实。
+或结构化模型过程时，输出“待核验（证据不足：暂时无法归因）”并停止分类；不得为了形成修改建议
+把未知项写成事实。
 验证时规则快照不可用且判断依赖规则版本变化时，同样停止并建议重跑。“证据不足”不是一级分类。
 
 ## B6 选择唯一一级分类
 
-完整执行 [badcase-attribution-policy.md](badcase-attribution-policy.md) 的 SKU/SPU 口径门禁和三类条件，
-为每条证据充分且标签明确的样本填写“唯一一级分类、口径与根因证据、具体原因、处理动作、回归方案、
-是否修改提示词”。标签不确定或证据不足时记录对应待核验结果并停止，不得强行三选一。整任务必须
-先逐条执行门禁和分类，再统计三类、标签不确定和证据不足数量。
+完整执行 [badcase-attribution-policy.md](badcase-attribution-policy.md) 的 SKU/SPU 口径门禁和明确结论条件，
+为每条证据充分且标签明确的样本填写“唯一结论、口径与根因证据、具体原因、处理动作、回归方案、
+是否修改提示词”。标签不确定或证据不足时记录对应待核验结果并停止，不得强行归因。整任务必须
+先逐条执行门禁和分类，再统计各明确结论、标签不确定和证据不足数量。
+
+只使用 [badcase-attribution-policy.md](badcase-attribution-policy.md) 的“一级分类、归因与处理唯一映射”表：
+
+1. 用 `humanLabel/modelLabel` 和 SPU 核验结论命中唯一一级分类行；
+2. 再用直接根因选择该分类下唯一 `caseAttribution`；
+3. 直接复制同一行的“是否修改 Prompt”和“处理方式”，禁止在 B7 重新判断或覆盖。
 
 ## B7 执行处理动作
 
-- “合理的 SKU/SPU 粒度差异”、两种待核验结果，或第 2、3 类但具体原因不在提示词：将“是否修改提示词”
-  记为“否”，不生成候选正文，不调用 `[S3]`，不输出 Diff、校验成功或确认创建话术。
-- 第 2、3 类且具体原因可直接定位到提示词缺陷：将“是否修改提示词”记为“是”。单条/描述基于该条证据生成一份非空
-  候选完整提示词；整任务仅在用户要求整合时合并同一锁下已确认缺陷并生成一份候选完整提示词。
+- `caseAttribution` 不为 `PROMPT_DEFECT`：固定“是否修改提示词=否”，不生成候选正文，不调用
+  `[S3]`，不输出 Diff、校验成功或确认创建话术。
+- `caseAttribution=PROMPT_DEFECT`：固定“是否修改提示词=是”。单条基于该条证据生成一份非空
+  候选完整提示词；整任务仅在用户要求整合时，合并同一服务端续批身份下各批次已确认的缺陷，并
+  生成一份候选完整提示词。服务端续批身份以首批响应及后续原样回传的 `continuationToken` 为准，
+  不得使用模型维护的本地锁判断批次归属。
   随后严格执行 [shared-steps.md](shared-steps.md) `[S3]`，实际调用：
 
   `tool_validate_prompt_skeleton(prompt_content=<候选完整提示词>, operator=上下文.operator, conversation_id=上下文.localConversationId, base_prompt_version_id=selectedPromptVersionId, rule_group_id=上下文.ruleGroupId, agent_id=上下文.agentId)`
@@ -309,8 +325,8 @@ Case 不得因重复分页被统计两次。
 ## B8 输出与回归
 
 使用入口文件唯一固定模板，不得由统一内核另造通用回复。输出中的一级分类、具体原因、是否修改
-提示词、处理建议和 Diff 必须与内部分析记录一致。整任务三类数量、标签不确定数量与证据不足数量
+提示词、处理建议和 Diff 必须与内部分析记录一致。整任务各明确结论数量、标签不确定数量与证据不足数量
 之和必须等于本批
-去重明细数；只有“是否修改提示词=是”的第 2、3 类样本进入候选修改合并。
+去重明细数；只有“是否修改提示词=是”的模型判得过严或过宽样本进入候选修改合并。
 
 确认创建草稿仍只按 [shared-steps.md](shared-steps.md) `[S5]` 执行，统一内核不得直接写入。

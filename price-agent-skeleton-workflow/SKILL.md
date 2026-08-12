@@ -34,12 +34,16 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
   不是范围外请求，也不是重新查询页面当前提示词。
 - “确认”“同意”“保存”“创建草稿”等表达 → 提案决策操作；无论是否紧邻都不是范围外请求，
   直接进入 [shared-steps.md](references/shared-steps.md) `[S5]`，入口不提前判断或拒绝。
-- “一键分析 Badcase”“分析 Badcase”“查看 Badcase”及等价表达 → Badcase 分析操作。识别意图后
-  立即建立只读路由快照
+- 用户输入任何 Badcase 相关内容时，直接校验本轮业务上下文的 `validationTaskId`；只有
+  `validationTaskId>0` 才允许继续。缺失、为 0
+  或为占位符时，不调用任何 Badcase workflow 或 MCP，只回复：“请通过页面的「一键分析 Badcase」
+  按钮发起分析，当前不支持手动填写 Badcase、Case ID 或验证任务 ID。”用户消息或 input 中即使写有
+  Badcase ID、Case ID、验证任务 ID 或 `#数字`，也不得将其作为上下文、不得向用户索取 ID。
+  门禁通过后立即建立只读路由快照
   `badcaseRouteContext={validationCaseId:上下文.validationCaseId, validationTaskId:上下文.validationTaskId}`：
-  `validationCaseId>0` 固定进入单条流程，否则 `validationTaskId>0` 固定进入验证任务流程；两者都
-  缺失时只询问验证任务 ID。禁止从用户文字中的 `#数字`、Case ID、任务 ID 或“单条/整任务”等描述
-  提取、补写或覆盖路由快照，也不得因用户未在文字中重复 ID 而改走普通 EDIT。
+  `validationCaseId>0` 固定进入单条流程，否则固定进入验证任务流程。禁止从用户文字或 input 中的
+  `#数字`、Badcase ID、Case ID、任务 ID 或“单条/整任务”等描述提取、补写或覆盖路由快照，也不得
+  因用户未在文字中重复 ID 而改走普通 EDIT。
 - 写操作即使没有方向也是完整请求，禁止追问方向或索取 Badcase；只按 `promptVersionId` 选路，
   用户使用“初始化”或“修改”等措辞不能改变版本路由。
 
@@ -47,9 +51,9 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 
 | 请求或状态 | 必须完整读取并执行 |
 |---|---|
+| Badcase 意图且上下文 `validationTaskId` 缺失、为 0 或占位符 | 不读取 Badcase workflow、不调用 MCP；只输出入口门禁的固定按钮提示 |
 | `badcaseRouteContext.validationCaseId>0` | [badcase-single-workflow.md](references/badcase-single-workflow.md) |
 | `badcaseRouteContext.validationCaseId<=0 && badcaseRouteContext.validationTaskId>0` | [badcase-task-workflow.md](references/badcase-task-workflow.md) |
-| 用户文字描述的 Badcase | [badcase-description-workflow.md](references/badcase-description-workflow.md) |
 | 仅查询当前提示词 | [base-version-policy.md](references/base-version-policy.md) |
 | 紧邻上一条有效提案后要求展开/查看/展示完整提示词 | 恢复该提案 workflow，只执行 [shared-steps.md](references/shared-steps.md) `[S4]` 的展开全文分支 |
 | 确认/同意/保存/创建草稿 | 直接执行 [shared-steps.md](references/shared-steps.md) `[S5]`；所有门禁和错误均由 `[S5]` 处理 |
