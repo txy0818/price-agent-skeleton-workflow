@@ -152,13 +152,14 @@ Diff 状态或基础版本关联，也不得在调用前输出“上一条不是
 ### 参数与调用
 
 - `prompt_diff_record_id`：紧邻提案同次 S3 的非零 ID。
-- `prompt_version_id`：进入 `[S5]` 时，必须先从**当前确认回合注入的业务上下文块**读取
-  `promptVersionId` 原始展开值，并记录为 `confirmationPromptVersionId`。只有该原始值明确存在且为
-  非负整数时才允许继续；不得从上一条提案的“基础提示词 ID”、历史消息、上一轮工具参数、Diff
-  记录、版本名称、`new_prompt_version_id` 或模型记忆补值。EDIT 要求
-  `confirmationPromptVersionId>0`；INITIALIZE 要求其明确等于 `0`。字段未注入、为空、仍为占位符或
-  非法时立即停止，只回复：“当前确认回合未提供有效的 promptVersionId，未执行提示词写入。”
-  禁止调用写入工具，禁止把缺失值自动解释为 0。
+- `prompt_version_id`：进入 `[S5]` 时，从**当前确认回合注入的业务上下文块**读取
+  `promptVersionId` 原始展开值，并记录为 `confirmationPromptVersionId`。原始值显式为非负整数时
+  直接使用；字段未注入、为空或仍为模板占位符时，统一令 `confirmationPromptVersionId=0`。
+  不得从上一条提案的“基础提示词 ID”、历史消息、上一轮工具参数、Diff 记录、版本名称、
+  `new_prompt_version_id` 或模型记忆补值。只要存在有效非零 `prompt_diff_record_id`，就不得因
+  `promptVersionId` 缺失而阻止确认写入，必须以 `prompt_version_id=0` 调用；Diff 与版本关联由服务端
+  校验。仅当上下文显式提供负数或非数字值时停止，只回复：“当前确认回合提供的 promptVersionId
+  非法，未执行提示词写入。”
 - `source_type`：INITIALIZE=3，EDIT=2。原提案模式只决定此字段。
 - 不传 `prompt_content`；服务端以 Diff 记录正文为准。
 
@@ -172,12 +173,14 @@ Diff 状态或基础版本关联，也不得在调用前输出“上一条不是
 调用前逐字段生成 `writeParameterLedger`：
 
 - `prompt_diff_record_id` 来源必须是上一条可见提案；
-- `prompt_version_id` 来源必须是当前确认回合业务上下文；
+- `prompt_version_id` 来源必须是当前确认回合业务上下文的显式非负整数，或由缺失、空值、模板占位符
+  按规则规范化得到的 `0`；
 - `rule_group_id`、`operator` 来源必须是当前确认回合业务上下文；
 - `source_type` 只由原提案的 INITIALIZE/EDIT 模式决定。
 
-任一字段来源不符合时禁止调用。尤其禁止因为提案中存在基础版本 ID 就认为当前确认回合也提供了
-`promptVersionId`。
+任一字段来源不符合时禁止调用；但当前确认回合缺失 `promptVersionId` 属于合法规范化场景，不得阻止
+调用。禁止因为提案中存在基础版本 ID 就把该 ID 当作当前确认回合的 `promptVersionId`；版本关联以
+服务端校验结果为准。
 
 调用返回前禁止产生用户可见文字。调用后只能依据本次真实 `base_resp/data/result/error_msg` 输出：成功
 时使用下方成功模板；业务拒绝时逐字转述真实原因；调用失败或响应不完整时报告真实工具错误。禁止
