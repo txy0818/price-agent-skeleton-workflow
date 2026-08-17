@@ -42,7 +42,7 @@ MCP 返回为准；未命中本文件已定义枚举的真实值不得由模型�
 不近似映射到上述五种。空值或
 去除首尾空白后为`""`、`"-"`、`"—"`时，不生成兜底语义。
 
-## 提示词版本状态 `version_status`
+## 提示词版本状态 `versionStatus`
 
 | 值 | 含义 | 可否修改 |
 |---:|---|---|
@@ -63,7 +63,7 @@ MCP 返回为准；未命中本文件已定义枚举的真实值不得由模型�
 
 只有 `task_status=3` 时才可读取验证结果。
 
-## 提示词来源 `source_type`
+## 提示词来源 `sourceType`
 
 | 值 | 含义 |
 |---:|---|
@@ -71,25 +71,25 @@ MCP 返回为准；未命中本文件已定义枚举的真实值不得由模型�
 | 2 | 模型优化 |
 | 3 | 系统初始化 |
 
-初始化写入使用 `source_type=3`，修改写入使用 `source_type=2`。
+初始化写入使用 `sourceType=3`，修改写入使用 `sourceType=2`。
 
-## 通用返回码 `base_resp.resp_code`
+## 通用返回码 `baseResp.respCode`
 
 | 值 | 含义 | 处理 |
 |---:|---|---|
 | 1 | 成功 | 继续读取 `data` |
-| 其他 | 失败 | 按 [SKILL.md](../SKILL.md) 的失败与重试规则处理，并向用户说明 `resp_desc` |
+| 其他 | 失败 | 按 [SKILL.md](../SKILL.md) 的失败与重试规则处理，并向用户说明 `respDesc` |
 
-`resp_code=1` 只表示调用成功，不表示 `data` 内容完整。各流程仍需按自身要求校验关键字段非空。
+`respCode=1` 只表示调用成功，不表示 `data` 内容完整。各流程仍需按自身要求校验关键字段非空。
 
-## 线上版本查询开关 `query_online`
+## 线上版本查询开关 `queryOnline`
 
 | 值 | 含义 |
 |---:|---|
-| false | 按 `prompt_version_id` 或 `version_name` 精确查询 |
+| false | 按 `promptVersionId` 或 `versionName` 精确查询 |
 | true | 查询当前线上版本，忽略 ID 与名称 |
 
 本 Skill 的初始化和修改流程固定传 `false`。这只表示不使用“自动查询当前线上版本”的模式；
 当业务上下文 `promptVersionId` 精确指向线上版本时，仍可按 ID 查询并将其作为只读基础派生新草稿。
-`version_name` 不得取自用户消息；用户指定具体版本名称时应按 SKILL 的最高优先级版本锁定规则
-直接终止。查询当前提示词时固定使用业务上下文 `promptVersionId`，并传 `version_name=""`。
+`versionName` 不得取自用户消息；用户指定具体版本名称时应按 SKILL 的最高优先级版本锁定规则
+直接终止。查询当前提示词时固定使用业务上下文 `promptVersionId`，并传 `versionName=""`。

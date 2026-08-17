@@ -14,9 +14,9 @@ ID 必须大于 0；禁止从用户文字提取、补写或替换 ID。缺失时
 
 只调用一次：
 
-`tool_query_validation_result(validation_task_id=上下文.validationTaskId, validation_case_id=上下文.validationCaseId, prompt_version_id=上下文.promptVersionId, operator=上下文.operator)`
+`tool_query_validation_result(validationTaskId=上下文.validationTaskId, validationCaseId=上下文.validationCaseId, promptVersionId=上下文.promptVersionId, operator=上下文.operator)`
 
-禁止传 `label_filter`、`page`、`continuation_token`、`conversation_id` 或其他字段；禁止重试。要求外层
+禁止传 `labelFilter`、`page`、`continuationToken`、`conversationId` 或其他字段；禁止重试。要求外层
 `result=1`、`data.baseResp.respCode=1`，响应任务 ID、Prompt ID、唯一结果的 Case ID 与请求一致，且结果
 满足 `isCorrect=0`。失败、空结果、多结果或身份不一致时，只返回真实错误并停止。
 
@@ -42,7 +42,7 @@ ID 必须大于 0；禁止从用户文字提取、补写或替换 ID。缺失时
 ```markdown
 ## Badcase 分析
 - 任务 / Badcase / 验证集：`<task_id> / <case_id> / <dataset_id；缺失写“未返回”>`
-- 任务提示词：`<version_name；缺失写“未返回”>`（ID：`<prompt_version_id>`）
+- 任务提示词：`<versionName；缺失写“未返回”>`（ID：`<promptVersionId>`）
 - 标签：`human_label=<值>`（<映射>），`model_label=<值>`（<映射>）
 
 ### 发现的问题

@@ -5,6 +5,13 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 
 # PriceStudio 提示词工作流
 
+## MCP 运行时命名
+
+- Tool 名称固定使用下划线，例如 `tool_validate_prompt_skeleton`；这是 MCP 的方法标识。
+- Tool 的入参与 `message.content.data` 中的业务响应字段固定使用万擎 Schema 的小驼峰，例如
+  `promptContent`、`baseResp`、`diffRecordId`。不得使用 proto/Java 源码中的下划线字段名。
+- 网关外层异常字段 `error_msg` 是唯一例外；其余字段一律按小驼峰读取。
+
 ## 入口边界
 
 - 进入 Skill 时只读取本轮业务上下文中已展开的 `promptVersionId`，绑定为
@@ -40,7 +47,7 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
   没有本轮写入工具真实响应时，禁止声称提案无效、已失效、版本不匹配或要求重新发起。
   写入调用前读取当前确认回合业务上下文中的 `promptVersionId`：显式非负整数直接使用；缺失、空值
   或模板占位符统一补为 `0`。不得从上一条提案的基础版本、历史消息或工具结果补值。只要存在有效
-  非零 `diff_id`，就不得因 `promptVersionId` 缺失而停止，必须以 `prompt_version_id=0` 调用写入工具；
+  非零 `diff_id`，就不得因 `promptVersionId` 缺失而停止，必须以 `promptVersionId=0` 调用写入工具；
   Diff 与版本关联交给服务端校验。仅当当前上下文显式提供负数或非数字值时停止并提示参数非法。
 - 用户输入任何 Badcase 相关内容时，直接校验本轮业务上下文的 `validationTaskId` 和
   `validationCaseId`；只有两者都大于 0 才允许继续。任一缺失、为 0
@@ -105,11 +112,11 @@ INITIALIZE 和 EDIT 全量同步在生成候选前必须完成以下三项硬门
 
 凡产生提示词提案的 INITIALIZE 或 EDIT，首条可见回复前必须完成目标 workflow
 要求的候选全文和 [shared-steps.md](references/shared-steps.md) `[S3]`。只有真实响应满足
-`valid=true` 且 `diff_record_id>0` 才能按 `[S4]` 展示提案；否则只返回 workflow 规定的最终错误。
+`baseResp.respCode=1`、`data.valid=true` 且 `data.diffRecordId>0` 才能按 `[S4]` 展示提案；否则只返回 workflow 规定的最终错误。
 禁止用模型自检代替工具、先展示再校验、伪造 Diff，或把中间错误作为用户确认节点。
 
-只有本轮真实 `tool_validate_prompt_skeleton` 调用返回 `resp_code=1 && valid=true &&
-diff_record_id>0`，才存在有效提案。无本轮 S3 调用记录、`diff_record_id=0`、空 Diff、占位 Diff 或
+只有本轮真实 `tool_validate_prompt_skeleton` 调用返回 `baseResp.respCode=1 && data.valid=true &&
+data.diffRecordId>0`，才存在有效提案。无本轮 S3 调用记录、`data.diffRecordId=0`、占位 Diff 或
 未锁定候选全文时，禁止声称校验通过、套用提案模板、请求确认或响应“展开完整提示词”；按 `[S3]`
 返回明确错误。
 

@@ -16,13 +16,14 @@
    工具返回的新版本 ID。该值大于 0 时停止并按入口重新路由 EDIT；否则锁定本轮初始化值为 0。
 2. `ruleGroupId` 缺失时执行 `[S1]`；`ruleGroupId` 与 `agentId` 至少一个大于 0。
 3. 生成前只调用一次：
-   `tool_query_prompt_skeleton(rule_group_id=<ruleGroupId>, prompt_version_id=0, version_name="", query_online=false, query_latest=true, operator=<operator>)`
-   - 返回非空 `data.prompt_version`：告知其 `version_name` 和 `prompt_version_id` 后停止，不加载规则、不生成或写入。
-   - 返回 `base_resp.resp_code=21` 且去除首尾空白后的
-     `base_resp.resp_desc="未找到匹配的骨架版本"`（JSON 序列化展示为
+   `tool_query_prompt_skeleton(ruleGroupId=<ruleGroupId>, promptVersionId=0, versionName="", queryOnline=false, queryLatest=true, operator=<operator>)`
+   - 返回非空 `data.promptVersion`：告知其 `data.promptVersion.versionName` 和
+     `data.promptVersion.promptVersionId` 后停止，不加载规则、不生成或写入。
+   - 返回 `baseResp.respCode=21` 且去除首尾空白后的
+     `baseResp.respDesc="未找到匹配的骨架版本"`（JSON 序列化展示为
      `baseResp.respCode=21`、`baseResp.respDesc="未找到匹配的骨架版本"`）：这是“明确不存在”的唯一判定，表示当前规则组
      尚无可复用骨架；不得作为工具失败展示给用户，继续执行第 4 步加载规则并生成初始化候选。
-   - `resp_code=21` 但 `resp_desc` 不是上述精确文本，或只有错误码/错误文案之一：不属于“明确
+   - `respCode=21` 但 `respDesc` 不是上述精确文本，或只有错误码/错误文案之一：不属于“明确
      不存在”，按异常响应停止。
    - 调用失败、超时、响应不完整或其他非成功响应：立即停止，不重试。
 4. 按 `[S2]` 先用 `tool_query_category_ids` 取得全部 CategoryIds，再逐 ID 查询规则，并加载过滤后的
@@ -33,7 +34,7 @@
    `expectedPriority` 和 `expectedMatch` 内部账本，再严格按 `skeleton-format.md` 生成并反向解析候选
    全文逐项比对；来源顺序或匹配语义任一不一致时必须内部修正，不得改用其他结构、把示例当业务
    事实或进入 `[S3]`。
-6. 用完整正文执行 `[S3]`，其中 `base_prompt_version_id=0`；初始化的查重响应和 Diff 字段按 `[S3]` 处理。
+6. 用完整正文执行 `[S3]`，其中 `basePromptVersionId=0`；初始化的查重响应和 Diff 字段按 `[S3]` 处理。
 
 ## 提案
 
@@ -43,8 +44,8 @@
 
 `````markdown
 ## 提示词初始化提案
-- 基础提示词版本：`prompt_version_id=0（初始化）`
-- 修改建议 ID（diff_id）：`<原样引用 S3 返回的非零 data.diff_record_id>`
+- 基础提示词版本：`promptVersionId=0（初始化）`
+- 修改建议 ID（diff_id）：`<原样引用 S3 返回的非零 data.diffRecordId>`
 - 状态：尚未保存
 ### 合理性判断
 - 初始化目标：为当前规则组创建首个 PriceStudio 比价 Agent 提示词
@@ -52,7 +53,7 @@
 - 适用范围与风险：<关联类目范围、需要重点回归的规则或映射>
 ### 完整提示词
 ````text
-<逐字符引用同次 S3 请求已提交并锁定的 prompt_content；不得省略、拆分或重新生成>
+<逐字符引用同次 S3 请求已提交并锁定的 promptContent；不得省略、拆分或重新生成>
 ````
 以上仅为提案。确认无误请回复：**确认初始化提示词**。确认后服务端会再次检查该规则组是否已有提示词；已有则直接返回现有结果，仍不存在才创建首个提示词草稿。
 `````
@@ -61,4 +62,4 @@
 
 ## 确认后
 
-紧邻确认时执行 `[S5]`，使用 `source_type=3`；其余取值、校验和回复完全按 `[S5]`。
+紧邻确认时执行 `[S5]`，使用 `sourceType=3`；其余取值、校验和回复完全按 `[S5]`。

@@ -8,10 +8,10 @@
 ## 查询顺序
 
 1. 初始化先调用
-   `tool_query_category_ids(rule_group_id=上下文.ruleGroupId, agent_id=上下文.agentId, operator=上下文.operator)`。
-   要求 `base_resp.resp_code=1` 且 `data.category_ids` 非空；只使用该去重列表，禁止从历史、名称、
-   提示词或模型记忆补类目 ID。响应中的 `rule_group_id` 与当前上下文不一致时停止。
-2. 遍历全部 `data.category_ids`，逐个调用
+   `tool_query_category_ids(ruleGroupId=上下文.ruleGroupId, agentId=上下文.agentId, operator=上下文.operator)`。
+   要求 `baseResp.respCode=1` 且 `data.categoryIds` 非空；只使用该去重列表，禁止从历史、名称、
+   提示词或模型记忆补类目 ID。响应中的 `ruleGroupId` 与当前上下文不一致时停止。
+2. 遍历全部 `data.categoryIds`，逐个调用
    `radar_query_price_rule(categoryId=<当前 categoryId>)`；不得漏查、合并 ID 或只查第一项。每次均
    要求业务成功、`isExist=true` 且 `data.labelCateRule` 完整。记录每个 ID 对应的
    `cateName`、`cateNameTree`、`belongBusiness` 和 `minCateId`，作为本轮唯一类目作用域。
