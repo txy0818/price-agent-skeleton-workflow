@@ -15,8 +15,20 @@ description: 当用户操作 PriceStudio 同款判定提示词（骨架）的新
 
 ## 意图边界
 
-- “新建/创建/初始化/优化/改善/修改/完善/重写提示词、骨架或规则”都属于提示词写操作；禁止在入口
-  追问方向，直接按 `promptVersionId` 路由到 EDIT 或 INITIALIZE。
+按以下优先级识别本轮唯一意图；一旦命中即停止继续匹配：
+
+1. **提案后续操作**：紧邻上一条有效提案的确认、保存、创建草稿、展开全文、拒绝或取消。
+2. **Badcase 分析**：明确要求分析、查看原因、诊断或定位 Badcase。
+3. **当前提示词查询**：明确要求查看、查询或展示页面当前选中的提示词；“查看规则”“解释规则”
+   不等同于查询当前提示词。
+4. **提示词写操作**：要求新建、创建、初始化、优化、改善、修改、完善、重写、增删或同步提示词、
+   骨架或规则。动作对象在当前 PriceStudio 会话中可明确省略，例如“按照比价项规则改一下”仍是写操作。
+5. **无法归类**：不能仅凭关键词命中；必须结合动作、对象和紧邻会话状态。无法唯一归入以上任一类时，
+   不读取 workflow、不调用 MCP，只询问：“请明确你要查询或修改当前提示词，还是分析 Badcase？”
+
+入口识别为写操作后，保留用户完整原句并直接按 `promptVersionId` 路由到 EDIT 或 INITIALIZE，不在
+入口追问修改方向。例如“按照比价项规则改一下”中的“按照比价项规则”表示以当前比价项规则为依据；
+`promptVersionId>0` 时交给 EDIT 判定为当前比价项规则同步，`promptVersionId=0` 时进入 INITIALIZE。
 - EDIT 内部四类分支（精确修改直达、当前规则同步、格式重构硬分支、无方向普通修改）只由
   [edit-all-in-one.md](references/edit-all-in-one.md) 根据用户完整表达判定和执行；入口不得把“规则”
   预判为泛化对象，也不得自行展开工具调用或候选生成。
@@ -33,8 +45,10 @@ description: 当用户操作 PriceStudio 同款判定提示词（骨架）的新
 | 仅查询当前提示词 | 不读取 workflow；完整执行本文件下方「当前提示词查询」小节 |
 | 紧邻上一条有效提案后要求展开/查看/展示完整提示词 | 只读取并执行 [shared-steps.md](references/shared-steps.md) `[S1]` 的展开全文分支；不恢复或重跑原提案 workflow |
 | 确认/同意/保存/创建草稿 | 直接执行 [shared-steps.md](references/shared-steps.md) `[S2]`；所有门禁和错误均由 `[S2]` 处理 |
+| 紧邻上一条提案后拒绝或取消 | 不读取 workflow、不调用 MCP；只回复：“已取消，本次提案未保存。” |
 | 任意提示词写操作且本轮 `promptVersionId>0` | [edit-all-in-one.md](references/edit-all-in-one.md) |
 | 任意提示词写操作且本轮 `promptVersionId` 缺失、为 0 或占位符 | [initialize-all-in-one.md](references/initialize-all-in-one.md) |
+| 无法唯一归类 | 不读取 workflow、不调用 MCP；只询问：“请明确你要查询或修改当前提示词，还是分析 Badcase？” |
 
 ## 执行纪律
 
@@ -59,15 +73,14 @@ description: 当用户操作 PriceStudio 同款判定提示词（骨架）的新
 
 ## 提案、展开、确认
 
-凡产生提示词提案的 INITIALIZE 或 EDIT，首条可见回复前必须完成目标 all-in-one workflow
-要求的候选全文和校验工具调用。只有真实响应满足 `baseResp.respCode=1`、`data.valid=true`
-且 `data.diffRecordId>0` 才能按 workflow 模板展示提案；否则只返回 workflow 规定的最终错误。
-禁止用模型自检代替工具、先展示再校验、伪造 Diff，或把中间错误作为用户确认节点。
+一旦路由到 INITIALIZE 或 EDIT，必须从目标 all-in-one workflow 第一步开始顺序执行。除非前置步骤
+命中该 workflow 明确规定的终止条件，否则必须先生成候选全文并完成
+`tool_validate_prompt_skeleton` 调用，期间不得向用户展示候选、提案、确认话术或中间结果。
 
-只有本轮真实 `tool_validate_prompt_skeleton` 调用返回 `baseResp.respCode=1 && data.valid=true &&
-data.diffRecordId>0`，才存在有效提案。无本轮校验工具调用记录、`data.diffRecordId=0`、占位 Diff 或
-未锁定候选全文时，禁止声称校验通过、套用提案模板、请求确认或响应“展开完整提示词”；
-按目标 workflow 返回明确错误。
+只有本轮校验真实响应同时满足 `baseResp.respCode=1`、`data.valid=true`、`data.diffRecordId>0`，且已锁定
+该次请求提交的候选全文，才按目标 workflow 模板展示提案。前置步骤终止、校验调用缺失或失败、
+`data.diffRecordId<=0`、响应不完整时，只输出目标 workflow 规定的最终错误；禁止模型自检、先展示
+再校验、伪造 Diff、请求确认或响应“展开完整提示词”。
 
 **凡 workflow 定义了提案，所有提案输出必须完全按照该 workflow 的提案模板和内容要求执行。**
 禁止改标题、字段、顺序、围栏或确认话术，禁止省略、概括、重写、补充提案内容，也禁止改用模型
