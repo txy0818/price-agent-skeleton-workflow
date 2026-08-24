@@ -1,8 +1,9 @@
 # 初始化提示词（全流程规范）
 
-本文件包含初始化流程所需的全部执行规范，无需读取其他 reference；所有共享步骤、规则查询、
-转换规范、格式规范、确认写入和版本选择均在本文件中定义。禁止读取 `full-skeleton-example.md`
-或任何历史完整提示词作为生成范式；格式只能来自本文件第 [§格式规范] 节。
+本文件只定义从初始化意图到展示初始化提案的完整执行规范；提案后的"展开完整提示词"、
+"确认/同意/保存/创建草稿"由 `SKILL.md` 重新识别意图并路由到对应流程。初始化生成过程中禁止读取
+其他 reference 或任何历史完整提示词作为生成范式。格式只能来自本文件第
+[5.2 生成候选 promptContent（完整格式模板）] 节。
 
 首条可见回复只能是初始化提案、已存在结果或明确错误。
 
@@ -53,34 +54,31 @@
    禁止从历史、名称、提示词或模型记忆补类目 ID。响应中的 `ruleGroupId` 与当前上下文不一致时停止。
 
 2. 遍历全部 `data.categoryIds`，逐个调用 `radar_query_price_rule(categoryId=<当前 categoryId>)`；
-   不得漏查、合并 ID 或只查第一项。每次均要求业务成功、`isExist=true` 且 `data.labelCateRule` 完整。
-   记录每个 ID 对应的 `cateName`、`cateNameTree`、`belongBusiness`、`minCateId`，
-   以及该 categoryId 下 `ruleTableInfo[].compareItem` 的完整列表（即"哪个 categoryId 有哪些比价项"）。
+   不得漏查、合并 ID 或只查第一项。每次均要求 `result=1`、`error_msg` 为空、
+   `data.baseRespInfo.respCode=1`、`data.labelCateRule.isExist=true`，且 `data.labelCateRule` 完整；
+   任一 categoryId 不满足即停止，不得用其他类目的规则补齐。
 
-3. 读取 `data.labelCateRule`：作用域字段 `belongBusiness`、`minCateId`、`cateName`、`cateNameTree`；
-   规则字段 `searchMethod`、`ruleTableInfo.ruleTableInfo[]` 中的 `compareItem`、`infoSource`、
-   `compareLogic`，以及 `specialRuleContent.ruleContent`。
-   要求 `result=1`、`isExist=true`、作用域和规则表非空。
+3. 对每次 `radar_query_price_rule` 响应，读取 `data.labelCateRule` 并建立该 categoryId 的规则记录：
+   作用域字段只取 `cateNameTree`；规则字段读取
+   `ruleTableInfo.ruleTableInfo[]` 中的 `compareItem`、`infoSource`、`compareLogic`，
+   以及同级的 `data.labelCateRule.specialRuleContent.ruleContent`。记录该 categoryId 下完整的 `compareItem` 列表，
+   即"哪个 categoryId 有哪些比价项"；作用域和规则表非空才可继续。
 
 #### 4.2 统一作用域过滤
 
-品牌和材质以规则响应中的 `cateNameTree` 为主要过滤依据，`belongBusiness` 用于确认完整作用域。多类目分别过滤后取并集，不得扩大成"电商全站"。
+品牌和材质分别收集各自触发类目的作用域：品牌只收集 `compareItem` 精确等于"品牌"的 categoryId
+对应 `cateNameTree` 集合，记为 `brandScopeCateNameTreeSet`；材质只收集 `compareItem` 名称包含"材质"的
+categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`。
+后续只判断对应集合是否为空，并用对应作用域集合统一过滤候选品牌组或材质行；输出前按品牌组或材质行去重。不得按每个类目分别输出一份，
+也不得扩大成"电商全站"。
 常识只能删除，不得新增、恢复、合并、改名或补别名。
 
-#### 4.3 汇总 compareItem 集合并执行映射门禁
+#### 4.3 主子品牌关系
 
-以全部有效 `ruleTableInfo[].compareItem` 建立集合：
-
-- 集合中**精确包含"品牌"**时：必须调用 `radar_query_brand_relation`（见 4.4）；
-  不包含"品牌"时禁止调用，对应映射表不得生成。
-- 集合中**精确包含"材质"**时：必须调用 `tool_query_material_leaf`（见 4.5）；
-  不包含"材质"时禁止调用，对应映射表不得生成。
-
-应调用的工具不可用、失败或响应无法解析时停止，禁止用模型知识兜底。
-
-#### 4.4 主子品牌关系
-
-本轮至少一个有效 `compareItem` 精确等于"品牌"时必须执行本节。
+`brandScopeCateNameTreeSet` 非空时必须执行本节；为空时不得执行、不得调用工具、
+不得输出母子品牌映射表及任何品牌映射说明（双向硬门禁）。
+品牌映射只使用 `brandScopeCateNameTreeSet` 统一过滤母子品牌；不得使用其他 categoryId 的类目，
+也不得把品牌范围扩大到全站或其他类目。
 
 调用 `radar_query_brand_relation`；若 schema 明确提供 `keyword`，全量查询传 `keyword=""`；
 不得自行添加 `cateName`、`categoryId` 或其他未定义参数。
@@ -98,17 +96,21 @@
 
 过滤顺序（硬约束）：
 1. 先遍历并校验 `data.groups` 全部组，不得预先截取前 N 组；
-2. 再按当前`cateNameTree`、`belongBusiness` 对全部有效组做相关性过滤；
-3. 删除跨行业、不确定和测试数据后，才对过滤结果应用 100 组上限；
-4. 过滤后不足上限就只输出实际命中组，不得从已删除组回填或用常识补齐。
+2. 再按 `brandScopeCateNameTreeSet` 对全部有效组做一次统一相关性过滤；
+3. 删除跨行业、不确定和测试数据，并按 `mainBrand.id` 或 `mainBrand.brandName` 去重后，才对过滤结果应用 100 组上限；
+4. 同一母品牌组不得因为命中多个 `cateNameTree` 重复输出；过滤后不足上限就只输出实际命中组，不得从已删除组回填或用常识补齐。
 
-映射表标题只能使用本轮真实 `cateName` 或 `cateNameTree`；禁止添加"及相关品牌""全站常见品牌"等
-扩大作用域的措辞。**100 组是上限，不是生成目标**；返回或过滤后只有 3 组就只写 3 组。
+过滤后 0 组时，静默省略母子品牌映射表，不得输出空结果说明，也不得停止。
+进入校验工具前记录 `brandGroupCount = min(过滤后组数, 100)`。
+禁止添加"及相关品牌""全站常见品牌"等扩大作用域的措辞。**100 组是上限，不是生成目标**；
+返回或过滤后只有 3 组就只写 3 组。
 
-#### 4.5 同款材质关系
+#### 4.4 同款材质关系
 
-本轮至少一个有效 `compareItem` 精确等于"材质"时必须执行本节；否则不得执行、不得调用工具、
+`materialScopeCateNameTreeSet` 非空时必须执行本节；为空时不得执行、不得调用工具、
 不得输出材质表及任何材质说明（双向硬门禁）。
+材质映射只使用 `materialScopeCateNameTreeSet` 统一过滤材质行；不得使用其他 categoryId 的类目，
+也不得把材质范围扩大到全站或其他类目。
 
 调用：`tool_query_material_leaf(operator=上下文.operator)`
 
@@ -118,12 +120,15 @@
 `<一级路径·...·父节点名>：<叶子材质1>、<叶子材质2>...`，
 例如 `贵金属·金·足金：999金、纯金、黄金`。
 
-模型无需自行解析树结构；只需按以下步骤处理：
+模型无需自行解析树结构。
 
-1. **类目过滤**：执行"统一作用域过滤"；以本轮 `cateName`（辅以 `cateNameTree`、`belongBusiness`）
-   为依据，只保留当前类目直接使用的材料，明显无关或不确定的行删除。
-2. **数量上限**：过滤后最多保留 50 行；不足 50 行时保持实际数量，不得补齐。
-3. **直接使用**：过滤后的文本行**原样**写入材质对照表附录，不得改写路径或成员名称。
+过滤顺序（硬约束）：
+1. 先遍历并校验 `materialText[]` 全部文本行，不得预先截取前 N 行；
+2. 再按 `materialScopeCateNameTreeSet` 对全部有效行做一次统一相关性过滤；
+3. 删除明显无关或不确定的行，并按文本行原文去重后，才对过滤结果应用 50 行上限；
+4. 同一材质行不得因为命中多个 `cateNameTree` 重复输出；过滤后不足上限就只输出实际命中行，不得从已删除行回填或用常识补齐。
+
+过滤后的文本行**原样**写入材质对照表附录，不得改写路径或成员名称。
 
 过滤后 0 行时，静默省略材质引用和材质表，不得输出空结果说明，也不得停止。
 进入校验工具前记录 `materialGroupCount = min(过滤后行数, 50)`。
@@ -134,15 +139,22 @@
 
 #### 5.1 比价项转换（账本）
 
-为每个真实 `compareItem` 生成内部转换账本，每行记录：
+内部转换账本按"每个类目下的每个比价项"分别记录，用 `categoryId` 区分不同类目记录。同名 `compareItem` 出现在多个 categoryId 下时，
+必须分别用各自类目记录中的 `cateNameTree`、`infoSource`、`data.labelCateRule.specialRuleContent.ruleContent` 和
+`compareLogic` 推导一行账本；只有各 categoryId 推导出的 `expectedPriority` 和 `expectedMatch` 完全一致时，
+生成提示词时才可合并为统一写法，否则必须在比价项章节按 `cateNameTree` 分条写。
+
+为每个真实类目记录下的每个 `compareItem` 生成内部转换账本，每行记录：
 
 | 字段 | 说明 |
 |---|---|
+| `categoryId` | 当前规则所属类目 ID |
+| `cateNameTree` | 当前规则所属类目路径原文，例如 `美妆/彩妆` |
 | `compareItem` | 真实名称 |
-| `infoSource` 原文 | 原始字段 |
-| `expectedPriority` | 按来源过滤规则推导；生成提示词时必须与此完全一致 |
-| 清洗后特殊规则 | 删除 SKU 后的 `specialRuleContent.ruleContent` 对应段 |
-| `compareLogic` 原文 | 原始字段 |
+| `infoSource` 原文 | 当前 categoryId 下的原始字段 |
+| `expectedPriority` | 按当前 categoryId 的来源过滤规则推导；生成提示词时必须与此完全一致 |
+| 清洗后特殊规则 | 删除 SKU 后的当前 categoryId 下 `data.labelCateRule.specialRuleContent.ruleContent` 对应内容 |
+| `compareLogic` 原文 | 当前 categoryId 下的原始字段 |
 | 别名归一后标准 `compareLogic` | 见下方枚举 |
 | `expectedMatch` | 清洗后特殊规则 + 兜底规则；生成提示词时必须与此完全一致 |
 
@@ -166,8 +178,8 @@
 
 ##### compareLogic 枚举（单一事实源）
 
-先去除输入首尾空白，再按以下受控别名精确归一；随后展开标准枚举，并将"该比价项"自然替换为
-真实 `compareItem` 名称。不得只输出逻辑名称，不得自行补充阈值、默认值或行业判断。
+先去除输入首尾空白，再按以下受控别名精确归一；命中受控别名时追加对应标准匹配语义原文。
+不得只输出逻辑名称，不得自行补充阈值、默认值或行业判断。
 
 **受控别名**：
 - `通用匹配逻辑`：左右两侧该比价项一致，或者信息不冲突，或者存在交集，即可匹配。
@@ -180,10 +192,22 @@
   - 可忽略符号，去符号后一致即匹配
   - **除货号外其他项均match=true→必须判same**（货号不一致不构成否决）
 
-当且仅当本轮某项真实 `compareLogic=货号匹配逻辑` 时，Step3 必须使用以下完整综合判定：
+按类目记录分别判断是否使用货号 Step3：收集 `compareLogic=货号匹配逻辑` 的 categoryId 对应
+`cateNameTree` 集合，记为 `partNoStep3CateNameTreeSet`；其余 categoryId 对应 `cateNameTree` 集合记为
+`normalStep3CateNameTreeSet`。`partNoStep3CateNameTreeSet` 非空时，必须为该集合生成以下完整综合判定；
+`normalStep3CateNameTreeSet` 非空时，仍保留普通 Step3。两个集合都非空时，按适用类目分成两个 Step3 小节，
+小节标题中用逗号拼接对应 `cateNameTree` 原文；若只有一个集合非空，则只输出一个 Step3，标题固定为
+`**Step3：综合判定**`，不得写"适用于"。不得把货号 Step3 扩大到没有货号匹配逻辑的类目。
+生成时将下方普通 Step3 和/或货号 Step3 直接填充到 5.2 完整格式模板的 Step3 指定位置。
 
 ```markdown
-**Step3：综合判定**
+**Step3：综合判定<仅当 partNoStep3CateNameTreeSet 也非空时追加：（适用于：<normalStep3CateNameTreeSet 中的 cateNameTree 原文，多个用逗号分隔>）>**
+—基于所有生效比价项的`match`字段得出`result`：
+- 所有生效比价项`match=true`时，必须判定为`same`。
+- 任一生效比价项`match=false`时，必须判定为`different`。
+- 严禁跳过Step1、Step2直接给出`result`；必须先完成抽取和逐项匹配，再得出最终结论。
+
+**Step3：综合判定<仅当 normalStep3CateNameTreeSet 也非空时追加：（适用于：<partNoStep3CateNameTreeSet 中的 cateNameTree 原文，多个用逗号分隔>）>**
 —基于所有生效比价项的`match`字段得出`result`：
 - 先排除货号项，仅聚合除货号外的其他生效比价项。
 - 除货号外所有生效比价项`match=true`时，必须判定为`same`。
@@ -198,194 +222,70 @@
 
 ##### 匹配内容规则（生成 expectedMatch）
 
-`specialRuleContent.ruleContent` 原始格式：以 `$序号. 比价项名称：` 为段标题开始、`$` 为段标题结束，后接换行和段内容；若已去掉 `$` 符号，则以 `序号. 比价项名称：` 行为段起始、下一个 `序号+1.` 行为段结束。
+`data.labelCateRule.specialRuleContent.ruleContent` 可能存在多种原始格式：以 `$序号. 比价项名称：` 为段标题开始、`$` 为段标题结束，后接换行和段内容；若已去掉 `$` 符号，则以 `序号. 比价项名称：` 行为段起始、下一个 `序号+1.` 行为段结束；也可能是 `比价项名称` 独占一行，下一行开始写该比价项解释，直到下一个比价项名称行、下一个序号标题或文本结束；也可能是一整段自然语言说明，没有明显段标题。
 
 每项"匹配"只能按以下顺序组成：
-1. 解析 `specialRuleContent.ruleContent`：按上述分段规则，找到标题中包含当前 `compareItem` 名称的段；
-   取该段标题行冒号后的内容及后续正文作为该比价项的专属规则原文；无对应段时此步骤结果为空。
+1. 解析当前 categoryId 下的 `data.labelCateRule.specialRuleContent.ruleContent`：按上述分段规则过滤全文，找到归属于当前 `compareItem` 的内容块；
+   若原文是一整段自然语言说明且无法按标题分段，则自行筛选其中与当前 `compareItem` 直接相关的句子或片段；
+   取标题行冒号后的内容、独占比价项名称行之后的解释，以及后续正文作为该比价项的专属规则原文；
+   只把关于当前比价项的内容放入该比价项"匹配"中，无对应内容块时此步骤结果为空。
    删除原文中所有 SKU 来源、SKU 图片、SKU 标题、SKU 包装等内容；混合句删除后语义不完整时整句删除，
    禁止把 SKU 改写为主图、商品标题或商品属性。
-2. 追加该项真实 `compareLogic` 按受控别名归一后的完整标准枚举展开。
+2. 处理该项真实 `compareLogic`：先取当前 categoryId 下当前 `compareItem` 对应的 `compareLogic` 原文；
+   若命中上方受控别名，则追加该别名对应的标准匹配语义原文，例如"左右两侧该比价项一致，或者信息不冲突，即可匹配。"；
+   若 `compareLogic` 不是上方任何受控别名，但接口返回了非空原文，则直接追加这段原文；
+   若接口未返回 `compareLogic` 或内容为空，则不追加匹配逻辑。
 
 无法唯一归属某个比价项但影响多项的特殊规则写入"总原则"，不得新建比价项。
 禁止根据比价项名称、旧提示词或模型常识补写规则。
 
 ##### 三类特殊比价项
 
-**品牌**：仅当真实比价项集合包含"品牌"时，按 4.4 查询母子品牌关系；无"品牌"时禁止查询和输出。
+**品牌**：仅当 `brandScopeCateNameTreeSet` 非空时，按 4.3 查询母子品牌关系；只用该集合统一筛选母子品牌，
+过滤并去重后放入母子品牌映射表；集合为空时禁止查询和输出。
 附录不能代替品牌的特殊规则或兜底。不能因为名称是"品牌"就自行添加母子品牌互认或直接判同规则。
 
-**材质**：当且仅当真实比价项集合包含"材质"时，材质章节在"匹配"之后额外增加独立条目
-`- **材质对照表**：见下方附录。`；这行不属于"匹配"，不得缩进到"匹配"子项中，不得计入 `expectedMatch`。
+**材质**：当且仅当 `materialScopeCateNameTreeSet` 非空时，材质章节在"匹配"之后额外增加独立条目
+`- **材质对照表**：见下方附录。`；只用该集合统一筛选材质行，过滤并去重后放入材质对照表；
+这行不属于"匹配"，不得缩进到"匹配"子项中，不得计入 `expectedMatch`。
 
-**货号**：仅当该项真实 `compareLogic=货号匹配逻辑` 时，按上方枚举展开，并同步使用货号 Step3。
-不能因为 `compareItem` 名称是"货号"就添加货号例外。
+**货号**：仅当某个类目记录下该项真实 `compareLogic=货号匹配逻辑` 时，按上方枚举展开，并将该类目的
+`cateNameTree` 纳入 `partNoStep3CateNameTreeSet`；这些类目使用货号 Step3，其余类目仍使用普通 Step3。
+不能因为 `compareItem` 名称是"货号"就添加货号例外，也不得把货号 Step3 扩大到没有货号匹配逻辑的类目。
 
 ##### 品牌映射格式与编号
 
 每组格式固定为 `序号. 母品牌→子品牌1|子品牌2`，每个主品牌组独占一行。
-过滤或删除任一组后，必须丢弃全部旧序号，保持剩余组当前顺序，从 1 开始整体重写为连续 `1..N`。
+过滤或删除任一组后，必须重新编号：删除第 K 个品牌组时，原第 K+1 个品牌组自动改成第 K 个，
+原第 K+2 个品牌组自动改成第 K+1 个，直到最后一组。最终品牌组编号必须是 `1、2、3...N`
+连续递增，不得保留断号、重复号、跳号或旧编号。
 过滤结果为 0 组时静默省略品牌映射表。
 
-#### 5.2 调用校验前的必检项
+##### 比价项章节格式与编号
 
-1. 从格式规范中完整复制 `# 输出格式` 固定块至第 8 条 `key_diff_point` 规则，不因长度或类目裁剪。
-2. 生成内部转换账本（见 5.1），命中受控别名时候选必须是标准枚举的完整展开，不得残留别名原文。
-3. JSON 围栏后保留 `字段规则：` 和完整 8 条规则。
-4. 对母子品牌映射表和比价项序列分别从 1 开始整体重写连续编号；重写后再次扫描，若仍断号则继续修复。
-5. 映射门禁：
-   - 有"品牌"时：必须有本轮品牌关系查询与过滤记录；过滤后非空输出映射表，为空静默省略；
-     品牌映射必须通过 5.1 品牌小节的完整过滤、数量、格式和连续编号门禁。
-   - 有"材质"时：对应比价项章节必须存在固定行 `- **材质对照表**：见下方附录。`，
-     且下方必须存在材质对照表附录，二者缺一不得调用校验；`materialGroupCount>0` 时输出真实行，
-     为 0 时静默省略引用和材质表。
-   - 品牌和材质均为空时省略整个 `## 映射表` 章节。
-   - 候选全文出现"无符合""无可输出""未命中""暂无"或任何映射门控说明，均视为空表泄漏，
-     必须删除后重新生成，禁止调用校验。
-   - 母子品牌标题不得包含"共 N 组"等动态组数。
-6. 全文约 1 万字；接近或超过时只删除重复解释、重复示例、同义表达；
-   不得裁掉真实比价项、规则边界、例外、固定章节或 JSON 字段，不得硬截断。
+每个比价项章节标题格式固定为 `### 序号. 比价项名称`，每个真实 `compareItem` 独占一个章节。
+按 `category` 裁剪、过滤、删除或合并任一比价项后，必须重新编号：删除第 K 个章节时，原第 K+1 个章节
+自动改成第 K 个，原第 K+2 个章节自动改成第 K+1 个，直到最后一项。最终章节编号必须是 `1、2、3...N`
+连续递增，不得保留断号、重复号、跳号或旧编号。
 
-#### 5.3 硬门禁
-
-1. **来源投影门禁**：每个 `compareItem` 的 `expectedPriority` 必须通过来源过滤规则推导，不得省略、
-   重排或补入原文不存在的来源；`商品属性栏（站外）` 必须保留并归一为 `商品属性`；
-   `主图文字说明` 必须保留并归一为 `主图`；品牌来源链必须按强制解析用例处理，
-   最终 `expectedPriority` 必须逐字符等于 `商品属性>主图>商品标题`。
-2. **关系响应门禁**：品牌、材质正文只能来自本轮真实关系接口响应及过滤结果；
-   材质直接使用本轮 `materialText[]` 过滤后的文本行，不得修改或补充。
-3. **候选泄漏门禁**：候选全文不得出现任何生成器门控、条件输出或内部算法说明，
-   也禁止用"无符合""未命中""暂无"等空结果正文占位。
-
-#### 5.4 调用校验
-
-`tool_validate_prompt_skeleton(promptContent=<候选全文>, operator=上下文.operator, conversationId=上下文.localConversationId, basePromptVersionId=0, ruleGroupId=上下文.ruleGroupId, agentId=上下文.agentId)`
-
-`ruleGroupId`、`agentId` 至少一个大于 0。
-
-初始化先处理 `data.promptExists`：为 true 时返回 `data.existingPromptVersionId` /
-`data.existingPromptName` 后停止；为 false 才继续。
-
-- `baseResp.respCode=1 && data.valid=true && data.diffRecordId>0`：成功，锁定本次 `promptContent`，
-  保留 `diffRecordId`、`diffContent`。后续展示引用这个已提交变量，禁止重新生成。
-  初始化时 `data.diffContent` 为空是允许的，不得据此报错或把 `diffRecordId` 推断为 0。
-- `baseResp.respCode=1 && data.valid=true && data.diffRecordId<=0`：立即异常结束，只回复
-  "提示词校验未生成有效修改建议（diffRecordId=0），无法形成提案。"禁止重试。
-- `data.valid=false`：只按 `data.errors` 修正报错处，其他正文不变，最多重试 2 次。
-- 其他情况或重试后仍失败：只返回最终错误，不展示提案、不写入。
-
-Diff 只取服务端 `data.diffContent`，禁止自行书写。只能首次及按 errors 重试时调用。
-
-### 6. 展示提案
-
-严格使用下方提案模板：标题为第一行，字段和顺序不变，替换全部占位符；模板外不加寒暄、摘要或结论。
-
-按下方格式展示。以下是初始化提案唯一允许的可见回复协议；必须以 `## 提示词初始化提案` 为第一行，
-逐项、按序套用，模板前后不得添加任何文字。所有尖括号字段必须替换成本轮真实值：
-
-`````markdown
-## 提示词初始化提案
-- 基础提示词版本：`promptVersionId=0（初始化）`
-- 修改建议 ID（diff_id）：`<原样引用 校验工具返回的非零 data.diffRecordId>`
-- 状态：尚未保存
-### 合理性判断
-- 初始化目标：为当前规则组创建首个 PriceStudio 比价 Agent 提示词
-- 规则与映射依据：<本轮实际加载的类目规则、母子品牌和材质映射范围>
-- 适用范围与风险：<关联类目范围、需要重点回归的规则或映射>
-### 完整提示词
-````text
-<逐字符引用同次校验工具调用已提交并锁定的 promptContent；不得省略、拆分或重新生成>
-````
-以上仅为提案。确认无误请回复：**确认初始化提示词**。确认后服务端会再次检查该规则组是否已有提示词；已有则直接返回现有结果，仍不存在才创建首个提示词草稿。
-`````
-
-发送前逐项自检：占位符是否全部替换、`promptContent` 是否与校验工具请求变量是同一字符串对象、
-`diffRecordId` 是否非零。
-
-初始化：逐字符展示同次校验工具调用已提交并锁定的 `promptContent`，放入四反引号 `text` 围栏；
-正文内三反引号原样保留，不得省略、拆分、重生成或写"其余组"。
-
-#### 展开完整提示词
-
-用户紧邻有效提案回复"展开完整提示词"时，只执行本分支。上一条必须来自真实同次校验，且
-`data.valid=true`、`data.diffRecordId>0`、锁定的 `promptContent` 非空；否则只返回
-"上一条不是可展开的有效提示词提案，请重新发起提示词修改。"
-
-满足条件时，不调用 MCP、不重新查询、不重新生成，只逐字符输出锁定的 `promptContent`：
-
-`````markdown
-````text
-<逐字符复制同次校验已锁定的 promptContent>
-````
-`````
-
-展开只用于查看，不构成确认。展开后原提案不能再直接确认；随后要求写入时须重新生成提案。
-
-### 7. 确认后写入草稿
-
-#### 确认门禁
-
-进入后禁止输出任何自然语言或执行其他工具，必须先按下方参数调用写入工具。
-
-若上一条 assistant 可见消息包含以下三项，则模型侧门禁通过，必须使用该非零 ID 调用写入工具：
-1. `## 提示词初始化提案`；
-2. 非零修改建议 ID（`diff_id`）；
-3. 明确确认话术。
-
-只有上一条 assistant 可见消息客观缺少上述任一项时，才允许不调用工具并准确说明缺少哪一项；
-不得笼统声称提案无效。没有本轮 `tool_edit_prompt_skeleton` 真实响应时，禁止生成任何服务端拒绝结论。
-
-#### 基础版本选择
-
-`promptVersionId=0`（初始化），基础提示词记为"无（初始化）"，跳过版本查询。
-
-#### 写入参数
-
-- `promptDiffRecordId`：紧邻提案同次校验 的非零 ID。
-- `promptVersionId`：从当前确认回合业务上下文读取 `promptVersionId` 原始展开值记为
-  `confirmationPromptVersionId`。原始值为非负整数时直接使用；字段未注入、为空或为占位符时
-  统一令 `confirmationPromptVersionId=0`。不得从提案"基础提示词 ID"、历史消息或工具结果补值。
-  只要存在有效非零 `promptDiffRecordId`，就不得因 `promptVersionId` 缺失而阻止写入，必须以
-  `promptVersionId=0` 调用。仅当上下文显式提供负数或非数字值时停止，只回复："当前确认回合
-  提供的 promptVersionId 非法，未执行提示词写入。"
-- `sourceType`：INITIALIZE=3。
-- 不传 `promptContent`；服务端以 Diff 记录正文为准。
-
-调用前生成 `writeParameterLedger`（来源必须符合上述规则，任一字段来源不符时禁止调用，
-但 `promptVersionId` 缺失属于合法规范化场景）：
-
-`tool_edit_prompt_skeleton(ruleGroupId=上下文.ruleGroupId, promptVersionId=confirmationPromptVersionId, operator=上下文.operator, sourceType=3, promptDiffRecordId=<紧邻提案Diff ID>)`
-
-调用返回前禁止产生用户可见文字。调用后只能依据本次真实 `baseResp`、`data`、`result`、`error_msg` 输出。
-
-#### 成功回复模板
-
-```markdown
-## 提示词草稿创建成功
-- 修改建议 ID（diff_id）：`<本次 promptDiffRecordId>`
-- 基础提示词：`无（promptVersionId=0，初始化）`
-- 新提示词：`<data.newPromptName>`（ID：`<data.newPromptVersionId>`，版本号：`<data.versionNo>`）
-- 状态：草稿已创建
-```
-
-`data.promptExists=true` 时新提示词字段仍取响应，状态改为"已存在，未新建"。不得总结变更内容；
-返回的新 ID 仅展示，不更新上下文。
-
----
-
-## §格式规范（唯一权威）
+#### 5.2 生成候选 promptContent（完整格式模板）
 
 本节规定候选提示词的完整结构。所有生成约束（"使用边界""生成原则"等）均为内部规范，
-**禁止将这些规范句子复制、改写或解释后写入 `promptContent`**。只有"完整格式模板"中
+**禁止将这些规范句子复制、改写或解释后写入 `promptContent`**。只有下方模板中
 从 `# 角色` 至 `# 输出格式`（含 8 条字段规则）的内容才是正文结构。
-
-### 完整格式模板
 
 以下模板是生成候选提示词的直接依据。所有尖括号内容必须替换为本轮真实数据；条件不适用时删除
 对应行，不得留下占位符、`TODO` 或空标题。
 **禁止将本节的规范说明句子复制、改写或解释后写入 `promptContent`**；只有模板围栏内从 `# 角色` 至 `# 输出格式`（含 8 条字段规则）的内容才是正文结构。
 
 **输入说明表生成规则**（仅用于生成，不得写入 `promptContent`）：遍历所有有效 `compareItem`，以比价项名称为行；同名 `compareItem` 出现在多个 categoryId 下时合并到同一行，各 `cateNameTree` 原文用逗号拼接；只出现在部分 categoryId 下的只填那几个 categoryId 的 `cateNameTree`，不得把无关类目填进来；同名 `compareItem` 不出现重复行；`cateNameTree` 已代表该路径下的全部子类目。
+
+**比价项章节生成规则**（仅用于生成，不得写入 `promptContent`）：生成 `## 比价项` 前，必须先按
+`compareItem` 对 5.1 内部转换账本分组；每个 `compareItem` 只生成一个章节，不得按 `categoryId`
+重复生成章节。组内所有 categoryId 的 `expectedPriority` 和 `expectedMatch` 均逐字符一致时，输出统一的
+`优先级` 和 `匹配`；只要任一 categoryId 的 `expectedPriority` 或 `expectedMatch` 不一致，必须分别按
+`cateNameTree` 输出 `优先级（<cateNameTree>）` 和 `匹配（<cateNameTree>）`。下方模板中的"情况一/情况二"
+只是内部选择逻辑，最终 `promptContent` 中不得出现"情况一"、"情况二"或未替换的示例类目。
 
 ````markdown
 # 角色
@@ -419,14 +319,9 @@ Diff 只取服务端 `data.diffContent`，禁止自行书写。只能首次及�
 **Step2：逐项匹配**
 —对每个生效比价项，按下方匹配规则判定`match`（`true`/`false`）和`reason`
 
-**Step3：综合判定**
-—基于所有生效比价项的`match`字段得出`result`：
-- 所有生效比价项`match=true`时，必须判定为`same`。
-- 任一生效比价项`match=false`时，必须判定为`different`。
-- 严禁跳过Step1、Step2直接给出`result`；必须先完成抽取和逐项匹配，再得出最终结论。
+<按 5.1 "货号匹配逻辑"下方的 Step3 生成规则，在此填入普通 Step3、货号 Step3 或两者；若两者都存在才在标题中标明适用 cateNameTree。>
 
 <若本轮真实特殊规则明确规定综合判定例外，在此追加；没有则删除本行。>
-<若真实 compareLogic=货号匹配逻辑，删除上方整个通用 Step3，并逐字符使用本文件"货号匹配逻辑"的完整货号 Step3；否则删除本行。>
 
 ---
 
@@ -450,8 +345,8 @@ Diff 只取服务端 `data.diffContent`，禁止自行书写。只能首次及�
 
 情况二：该比价项在不同 categoryId 下 `expectedPriority` 或 `expectedMatch` 不同，按类目分条写：
 - **优先级（<cateNameTree-A>）**：<该类目的 expectedPriority>
-- **优先级（<cateNameTree-B>）**：<该类目的 expectedPriority>
 - **匹配（<cateNameTree-A>）**：<该类目的 expectedMatch>
+- **优先级（<cateNameTree-B>）**：<该类目的 expectedPriority>
 - **匹配（<cateNameTree-B>）**：<该类目的 expectedMatch>
 
 按本轮查询结果为每个生效比价项生成一个章节，并保持连续编号。
@@ -527,7 +422,7 @@ Diff 只取服务端 `data.diffContent`，禁止自行书写。只能首次及�
 生成时必须逐条保留，不得概括、合并、改写或省略。JSON 围栏结束不代表 `# 输出格式` 章节结束，
 只有 8 条字段规则全部输出后该章节才完整。具体类目不涉及材质时，也必须保留多部位材质的字段格式规则。
 
-### 章节结构要求
+##### 章节结构要求
 
 完整提示词必须包含以下章节并严格保持顺序：
 1. `# 角色`
@@ -539,7 +434,7 @@ Diff 只取服务端 `data.diffContent`，禁止自行书写。只能首次及�
 
 一级章节之间使用独立的 `---` 分隔。除条件性 `## 映射表` 外，不得改名、合并、调序或省略固定章节。
 
-### 映射表写法
+##### 映射表写法
 
 **母子品牌**：
 - 标题格式：`### 母子品牌映射表`，禁止写动态组数。
@@ -552,7 +447,7 @@ Diff 只取服务端 `data.diffContent`，禁止自行书写。只能首次及�
 - 过滤后为 0 行时省略材质引用行和整个材质表，不输出空结果说明。
 - 最多 50 组；实际不足时不补齐。
 
-### 完成检查
+##### 完成检查
 
 生成候选全文后逐项检查，任一项不满足先修复再调用校验工具：
 
@@ -578,3 +473,81 @@ Diff 只取服务端 `data.diffContent`，禁止自行书写。只能首次及�
 - `confidence` 是否为范围内的具体数字字面量，而不是字符串或区间？
 - `key_diff_point` 是否始终存在，并与 `result` 一致？
 - JSON 围栏后是否仍完整包含 `字段规则：` 及其下方 8 条固定规则？
+
+#### 5.3 调用校验前的必检项
+
+1. 从 5.2 完整格式模板中完整复制 `# 输出格式` 固定块至第 8 条 `key_diff_point` 规则，不因长度或类目裁剪。
+2. 生成内部转换账本（见 5.1），命中受控别名时候选必须是标准枚举的完整展开，不得残留别名原文。
+3. JSON 围栏后保留 `字段规则：` 和完整 8 条规则。
+4. 对母子品牌映射表和比价项序列分别从 1 开始整体重写连续编号；重写后再次扫描，若仍断号则继续修复。
+5. 映射门禁：
+   - `brandScopeCateNameTreeSet` 非空时：必须有本轮品牌关系查询与过滤记录；过滤后非空输出映射表，为空静默省略；
+     品牌映射必须通过 4.3 的完整过滤、数量、格式和连续编号门禁。
+   - `materialScopeCateNameTreeSet` 非空时：对应比价项章节必须存在固定行 `- **材质对照表**：见下方附录。`，
+     且下方必须存在材质对照表附录，二者缺一不得调用校验；`materialGroupCount>0` 时输出真实行，
+     为 0 时静默省略引用和材质表。
+   - `brandScopeCateNameTreeSet` 和 `materialScopeCateNameTreeSet` 均为空时，省略整个 `## 映射表` 章节。
+   - 候选全文出现"无符合""无可输出""未命中""暂无"或任何映射门控说明，均视为空表泄漏，
+     必须删除后重新生成，禁止调用校验。
+   - 母子品牌标题不得包含"共 N 组"等动态组数。
+6. 全文约 1 万字；接近或超过时只删除重复解释、重复示例、同义表达；
+   不得裁掉真实比价项、规则边界、例外、固定章节或 JSON 字段，不得硬截断。
+
+#### 5.4 硬门禁
+
+1. **来源投影门禁**：每个 `compareItem` 的 `expectedPriority` 必须通过来源过滤规则推导，不得省略、
+   重排或补入原文不存在的来源；`商品属性栏（站外）` 必须保留并归一为 `商品属性`；
+   `主图文字说明` 必须保留并归一为 `主图`；品牌来源链必须按强制解析用例处理，
+   最终 `expectedPriority` 必须逐字符等于 `商品属性>主图>商品标题`。
+2. **关系响应门禁**：品牌、材质正文只能来自本轮真实关系接口响应及过滤结果；
+   材质直接使用本轮 `materialText[]` 过滤后的文本行，不得修改或补充。
+3. **候选泄漏门禁**：候选全文不得出现任何生成器门控、条件输出或内部算法说明，
+   也禁止用"无符合""未命中""暂无"等空结果正文占位。
+
+#### 5.5 调用校验
+
+`tool_validate_prompt_skeleton(promptContent=<候选全文>, operator=上下文.operator, conversationId=上下文.localConversationId, basePromptVersionId=0, ruleGroupId=上下文.ruleGroupId, agentId=上下文.agentId)`
+
+`ruleGroupId`、`agentId` 至少一个大于 0。
+
+初始化先处理 `data.promptExists`：为 true 时返回 `data.existingPromptVersionId` /
+`data.existingPromptName` 后停止；为 false 才继续。
+
+- `baseResp.respCode=1 && data.valid=true && data.diffRecordId>0`：成功，锁定本次 `promptContent`，
+  保留 `diffRecordId`、`diffContent`。后续展示引用这个已提交变量，禁止重新生成。
+  初始化时 `data.diffContent` 为空是允许的，不得据此报错或把 `diffRecordId` 推断为 0。
+- `baseResp.respCode=1 && data.valid=true && data.diffRecordId<=0`：立即异常结束，只回复
+  "提示词校验未生成有效修改建议（diffRecordId=0），无法形成提案。"禁止重试。
+- `data.valid=false`：只按 `data.errors` 修正报错处，其他正文不变，最多重试 2 次。
+- 其他情况或重试后仍失败：只返回最终错误，不展示提案、不写入。
+
+Diff 只取服务端 `data.diffContent`，禁止自行书写。只能首次及按 errors 重试时调用。
+
+### 6. 展示提案
+
+严格使用下方提案模板：标题为第一行，字段和顺序不变，替换全部占位符；模板外不加寒暄、摘要或结论。
+
+按下方格式展示。以下是初始化提案唯一允许的可见回复协议；必须以 `## 提示词初始化提案` 为第一行，
+逐项、按序套用，模板前后不得添加任何文字。所有尖括号字段必须替换成本轮真实值：
+
+`````markdown
+## 提示词初始化提案
+- 基础提示词版本：`promptVersionId=0（初始化）`
+- 修改建议 ID（diff_id）：`<原样引用 校验工具返回的非零 data.diffRecordId>`
+- 状态：尚未保存
+### 合理性判断
+- 初始化目标：为当前规则组创建首个 PriceStudio 比价 Agent 提示词
+- 规则与映射依据：<本轮实际加载的类目规则、母子品牌和材质映射范围>
+- 适用范围与风险：<关联类目范围、需要重点回归的规则或映射>
+### 完整提示词
+````text
+<逐字符引用同次校验工具调用已提交并锁定的 promptContent；不得省略、拆分或重新生成>
+````
+以上仅为提案。确认无误请回复：**确认初始化提示词**。确认后服务端会再次检查该规则组是否已有提示词；已有则直接返回现有结果，仍不存在才创建首个提示词草稿。
+`````
+
+发送前逐项自检：占位符是否全部替换、`promptContent` 是否与校验工具请求变量是同一字符串对象、
+`diffRecordId` 是否非零。
+
+初始化：逐字符展示同次校验工具调用已提交并锁定的 `promptContent`，放入四反引号 `text` 围栏；
+正文内三反引号原样保留，不得省略、拆分、重生成或写"其余组"。

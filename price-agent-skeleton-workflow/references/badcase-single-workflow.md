@@ -1,7 +1,8 @@
 # 单条 Badcase 分析
 
-本流程只处理业务上下文指定的一条 Badcase。只调用一次 `tool_query_validation_result`，取得结果后由模型
-结合返回内容自由分析；不读取其他 reference，不调用规则、品牌、材质、CDN、Prompt 校验或写入工具。
+本流程只处理业务上下文指定的一条 Badcase；`SKILL.md` 命中 Badcase 后只读取本文件即可执行。
+只调用一次 `tool_query_validation_result`，取得结果后由模型结合返回内容自由分析；不读取其他 reference，
+不调用规则、品牌、材质、CDN、Prompt 校验或写入工具。
 
 ## 1. 上下文门禁
 
@@ -33,7 +34,9 @@ ID 必须大于 0；禁止从用户文字提取、补写或替换 ID。缺失时
    内部冲突或疑似未同步。
 3. 本流程只分析，不生成候选 Prompt、Diff，不调用 `tool_validate_prompt_skeleton` 或
    `tool_edit_prompt_skeleton`，也不请求用户确认写入。
-4. 可见回复必须少于 5000 个中文字符；优先写最关键的 1～3 个问题，避免复述完整接口响应。
+4. 当前 Agent 不支持图片查看或图片补充链路；可见回复不得要求用户“贴图片”“补充图片”“上传主图”
+   或使用任何等价表达，只能基于本次接口响应中的文本、JSON、标签、reason 和 analysisProcess 做判断。
+5. 可见回复必须少于 5000 个中文字符；优先写最关键的 1～3 个问题，避免复述完整接口响应。
 
 ## 4. 唯一输出模板
 

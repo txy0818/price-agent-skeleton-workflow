@@ -5,13 +5,6 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 
 # PriceStudio 提示词工作流
 
-## MCP 运行时命名
-
-- Tool 名称固定使用下划线，例如 `tool_validate_prompt_skeleton`；这是 MCP 的方法标识。
-- Tool 的入参与 `message.content.data` 中的业务响应字段固定使用万擎 Schema 的小驼峰，例如
-  `promptContent`、`baseResp`、`diffRecordId`。不得使用 proto/Java 源码中的下划线字段名。
-- 网关外层异常字段 `error_msg` 是唯一例外；其余字段一律按小驼峰读取。
-
 ## 入口边界
 
 - 进入 Skill 时只读取本轮业务上下文中已展开的 `promptVersionId`，绑定为
@@ -72,8 +65,8 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 | 仅查询当前提示词 | [base-version-policy.md](references/base-version-policy.md) |
 | 紧邻上一条有效提案后要求展开/查看/展示完整提示词 | 恢复该提案 workflow，只执行 [shared-steps.md](references/shared-steps.md) `[S4]` 的展开全文分支 |
 | 确认/同意/保存/创建草稿 | 直接执行 [shared-steps.md](references/shared-steps.md) `[S5]`；所有门禁和错误均由 `[S5]` 处理 |
-| 任意提示词写操作且本轮 `promptVersionId>0` | [edit-skeleton-workflow.md](references/edit-skeleton-workflow.md) |
-| 任意提示词写操作且本轮 `promptVersionId` 缺失、为 0 或占位符 | [initialize-skeleton-workflow.md](references/initialize-skeleton-workflow.md) |
+| 任意提示词写操作且本轮 `promptVersionId>0` | [edit-all-in-one.md](references/edit-all-in-one.md) |
+| 任意提示词写操作且本轮 `promptVersionId` 缺失、为 0 或占位符 | [initialize-all-in-one.md](references/initialize-all-in-one.md) |
 
 `promptVersionId>0` 命中 EDIT 后禁止再查找 INITIALIZE workflow；当前正文残缺不是切换流程或要求
 用户补正文的理由，必须由 EDIT 按其格式重构分支处理。
@@ -88,9 +81,10 @@ description: 处理 PriceStudio 同款判定提示词（骨架）的新建、查
 要求读取文件或调用 MCP，首条可见回复前必须存在本轮对应的真实读取和调用记录；缺任一记录只能
 返回具体文件/工具错误，禁止继续输出提案、确认话术、完整提示词或范围外固定回复。
 
-选定 workflow 后完整读取该文件及其直接要求的 references，并严格按原顺序执行；只跳过 workflow
-明确允许跳过的步骤。详细版本选择、规则与关系加载、骨架格式、S1～S5、Diff、确认、写入参数和
-输出模板，分别以对应 reference 为唯一权威，本文件不补充或重解释。
+选定 workflow 后完整读取路由表中的目标文件，并严格按原顺序执行；只跳过 workflow 明确允许跳过的步骤。
+Badcase、INITIALIZE、EDIT 均以路由表中的单个目标文件为执行权威，不再继续读取拆分 reference。
+仅“查询当前提示词”“展开完整提示词”“确认/同意/保存/创建草稿”这些独立入口按路由表读取
+`base-version-policy.md` 或 `shared-steps.md`。
 
 INITIALIZE 和 EDIT 全量同步在生成候选前必须完成以下三项硬门禁；任一不满足即停止，不得调用 S3：
 
@@ -110,15 +104,15 @@ INITIALIZE 和 EDIT 全量同步在生成候选前必须完成以下三项硬门
 上述门禁必须以本轮原始规则响应、关系响应和内部覆盖账本为证据；仅在 reference 中读到算法或示例
 不算完成。`tool_validate_prompt_skeleton` 只做格式校验，不能替代这些业务一致性检查。
 
-凡产生提示词提案的 INITIALIZE 或 EDIT，首条可见回复前必须完成目标 workflow
-要求的候选全文和 [shared-steps.md](references/shared-steps.md) `[S3]`。只有真实响应满足
-`baseResp.respCode=1`、`data.valid=true` 且 `data.diffRecordId>0` 才能按 `[S4]` 展示提案；否则只返回 workflow 规定的最终错误。
+凡产生提示词提案的 INITIALIZE 或 EDIT，首条可见回复前必须完成目标 all-in-one workflow
+要求的候选全文和校验工具调用。只有真实响应满足 `baseResp.respCode=1`、`data.valid=true`
+且 `data.diffRecordId>0` 才能按 workflow 模板展示提案；否则只返回 workflow 规定的最终错误。
 禁止用模型自检代替工具、先展示再校验、伪造 Diff，或把中间错误作为用户确认节点。
 
 只有本轮真实 `tool_validate_prompt_skeleton` 调用返回 `baseResp.respCode=1 && data.valid=true &&
 data.diffRecordId>0`，才存在有效提案。无本轮 S3 调用记录、`data.diffRecordId=0`、占位 Diff 或
-未锁定候选全文时，禁止声称校验通过、套用提案模板、请求确认或响应“展开完整提示词”；按 `[S3]`
-返回明确错误。
+未锁定候选全文时，禁止声称校验通过、套用提案模板、请求确认或响应“展开完整提示词”；
+按目标 workflow 返回明确错误。
 
 **凡 workflow 定义了提案，所有提案输出必须完全按照该 workflow 的提案模板和内容要求执行。**
 禁止改标题、字段、顺序、围栏或确认话术，禁止省略、概括、重写、补充提案内容，也禁止改用模型
