@@ -20,8 +20,8 @@
 
 ### 1. 确认版本路由
 
-重新读取本轮业务上下文 `promptVersionId`；该值大于 0 时停止并按入口重新路由 EDIT；
-否则锁定本轮初始化值为 0。
+沿用 `SKILL.md` 入口绑定的 `currentPromptVersionId`；该值大于 0 时停止并按入口重新路由 EDIT；
+否则本流程按 `promptVersionId=0` 继续。
 
 ### 2. 补齐 ruleGroupId
 
@@ -80,7 +80,7 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
 品牌映射只使用 `brandScopeCateNameTreeSet` 统一过滤母子品牌；不得使用其他 categoryId 的类目，
 也不得把品牌范围扩大到全站或其他类目。
 
-调用 `radar_query_brand_relation`；若 schema 明确提供 `keyword`，全量查询传 `keyword=""`；
+调用 `radar_query_brand_relation`；全量查询传 `keyword=""`；
 不得自行添加 `cateName`、`categoryId` 或其他未定义参数。
 
 成功条件：`result=1`、`error_msg` 为空、`data.baseResp.respCode=1`，且 `data.groups` 可解析。
@@ -241,13 +241,15 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
 
 ##### 三类特殊比价项
 
-**品牌**：仅当 `brandScopeCateNameTreeSet` 非空时，按 4.3 查询母子品牌关系；只用该集合统一筛选母子品牌，
-过滤并去重后放入母子品牌映射表；集合为空时禁止查询和输出。
+**品牌**：母子品牌关系的查询、过滤和去重只按 4.2、4.3 执行；本节只规定候选正文落点。
+`brandGroupCount>0` 时，只能输出到母子品牌映射表；`brandGroupCount=0` 时候选中不得出现母子品牌映射表或空结果说明。
 附录不能代替品牌的特殊规则或兜底。不能因为名称是"品牌"就自行添加母子品牌互认或直接判同规则。
 
-**材质**：当且仅当 `materialScopeCateNameTreeSet` 非空时，材质章节在"匹配"之后额外增加独立条目
-`- **材质对照表**：见下方附录。`；只用该集合统一筛选材质行，过滤并去重后放入材质对照表；
-这行不属于"匹配"，不得缩进到"匹配"子项中，不得计入 `expectedMatch`。
+**材质**：材质关系的查询、过滤和去重只按 4.2、4.4 执行；本节只规定候选正文落点。
+`materialGroupCount>0` 时，材质章节在"匹配"之后额外增加独立条目
+`- **材质对照表**：见下方附录。`，并在 `## 映射表` 中输出材质对照表；
+`materialGroupCount=0` 时两处都不得出现。这行不属于"匹配"，不得缩进到"匹配"子项中，
+不得计入 `expectedMatch`。
 
 **货号**：仅当某个类目记录下该项真实 `compareLogic=货号匹配逻辑` 时，按上方枚举展开，并将该类目的
 `cateNameTree` 纳入 `partNoStep3CateNameTreeSet`；这些类目使用货号 Step3，其余类目仍使用普通 Step3。

@@ -6,7 +6,8 @@
 
 ## 1. 上下文门禁
 
-只从本轮业务上下文读取：`validationTaskId`、`validationCaseId`、`promptVersionId`、`operator`。前三个
+只从本轮业务上下文读取：`validationTaskId`、`validationCaseId`、`operator`，并沿用 `SKILL.md`
+入口绑定的 `currentPromptVersionId`。前三个
 ID 必须大于 0；禁止从用户文字提取、补写或替换 ID。缺失时固定回复：
 
 `请通过页面的「一键分析 Badcase」按钮对单条 Badcase 发起分析，当前不支持手动填写 Badcase、Case ID 或验证任务 ID。`
@@ -15,7 +16,7 @@ ID 必须大于 0；禁止从用户文字提取、补写或替换 ID。缺失时
 
 只调用一次：
 
-`tool_query_validation_result(validationTaskId=上下文.validationTaskId, validationCaseId=上下文.validationCaseId, promptVersionId=上下文.promptVersionId, operator=上下文.operator)`
+`tool_query_validation_result(validationTaskId=上下文.validationTaskId, validationCaseId=上下文.validationCaseId, promptVersionId=currentPromptVersionId, operator=上下文.operator)`
 
 禁止传 `labelFilter`、`page`、`continuationToken`、`conversationId` 或其他字段；禁止重试。要求外层
 `result=1`、`data.baseResp.respCode=1`，响应任务 ID、Prompt ID、唯一结果的 Case ID 与请求一致，且结果
