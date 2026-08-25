@@ -252,8 +252,8 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
 
 过滤顺序（硬约束）：
 1. 先遍历并校验 `data.groups` 全部组，不得预先截取前 N 组；
-2. 再按 `brandScopeCateNameTreeSet` 对全部有效组做一次统一相关性过滤；
-3. 删除跨行业、不确定和测试数据，并按 `mainBrand.id` 或 `mainBrand.brandName` 去重后，才对过滤结果应用 100 组上限；
+2. 再按 `brandScopeCateNameTreeSet` 对全部有效组做一次统一相关性过滤；过滤只看 `mainBrand.brandName`，不看子品牌名称：`mainBrand.brandName` 能被 `brandScopeCateNameTreeSet` 中的类目语义直接关联时保留该组（母品牌连同其全部有效子品牌一起放入映射表）；无法关联时整组删除。判定方式——品牌名称本身即属于该类目的常见品牌（例如 `brandScopeCateNameTreeSet={酒类}` 时，保留茅台/五粮液/泸州老窖/张裕/嘉士伯等酒类品牌，删除小米/联想/OPPO/长城汽车/吉利等电子产品或汽车品牌）；品牌名称虽不直接含类目关键词但业界公认属于该类目行业的也可保留。不得凭品牌知名度、市场规模或常识扩大范围。
+3. 按 `mainBrand.id` 或 `mainBrand.brandName` 去重后，才对过滤结果应用 100 组上限；
 4. 同一母品牌组不得因为命中多个 `cateNameTree` 重复输出；过滤后不足上限就只输出实际命中组，不得从已删除组回填或用常识补齐。
 
 过滤后 0 组时，静默省略母子品牌映射表，不得输出空结果说明，也不得停止。
@@ -298,8 +298,8 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
 
 内部转换账本按"每个类目下的每个比价项"分别记录，用 `categoryId` 区分不同类目记录。同名 `compareItem` 出现在多个 categoryId 下时，
 必须分别用各自类目记录中的 `cateNameTree`、`infoSource`、`data.labelCateRule.specialRuleContent.ruleContent` 和
-`compareLogic` 推导一行账本；只有各 categoryId 推导出的 `expectedPriority` 和 `expectedMatch` 完全一致时，
-生成提示词时才可合并为统一写法，否则必须在比价项章节按 `cateNameTree` 分条写。
+`compareLogic` 推导一行账本；属于多个 categoryId 的同名比价项，
+生成提示词时只有各 categoryId 的 `expectedPriority` 和 `expectedMatch` 完全一致才可合并为统一写法，否则必须按 `cateNameTree` 分条写。
 
 为每个真实类目记录下的每个 `compareItem` 生成内部转换账本，每行记录：
 
@@ -550,6 +550,8 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
 - **匹配（<cateNameTree-B>）**：<该类目的 expectedMatch>
 
 按本轮查询结果为每个生效比价项生成一个章节，并保持连续编号。
+
+章节标题只写比价项名称，禁止追加「（仅<类目>生效）」「（适用于：<类目>）」或任何作用域标注；适用类目只由输入说明表表达。
 
 映射章节必须先在内部得到 `brandGroupCount` 和 `materialGroupCount`，然后一次性拼接：
 - `brandGroupCount=0 && materialGroupCount=0`：不输出任何映射相关字符；
