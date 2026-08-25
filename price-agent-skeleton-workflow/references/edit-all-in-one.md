@@ -213,23 +213,25 @@
 
 #### 4.1.2 统一作用域过滤
 
-品牌和材质分别收集各自触发类目的作用域：品牌只收集 `compareItem` 精确等于"品牌"的 categoryId
-对应 `cateNameTree` 集合，记为 `brandScopeCateNameTreeSet`；材质只收集 `compareItem` 名称包含"材质"的
-categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`。
-两个集合只能由本轮各 categoryId 的 `ruleTableInfo.ruleTableInfo[].compareItem` 推导，禁止根据工具可用性、
+品牌只收集 `compareItem` 精确等于"品牌"的 categoryId 对应 `cateNameTree` 集合，记为
+`brandScopeCateNameTreeSet`。材质对每个名称包含"材质"的真实 `compareItem` 建立一行
+`materialScopeLedger`，每行固定记录 `(categoryId, cateNameTree, compareItem)`，保留 `compareItem` 原名；
+再将账本中的 `cateNameTree` 去重投影为 `materialScopeCateNameTreeSet`。
+品牌集合和材质账本只能由本轮各 categoryId 的 `ruleTableInfo.ruleTableInfo[].compareItem` 推导，禁止根据工具可用性、
 历史响应、基础正文、常识或用户未绑定到真实比价项的数据反推作用域。若全部真实 `compareItem` 均不含"品牌"，
 立即锁定 `brandScopeCateNameTreeSet=空集`、`brandGroupCount=0`：不得调用品牌关系工具；即使上下文中已有
 品牌响应也必须忽略；重建候选时不得出现品牌比价项及其结构落点、母子品牌映射或映射引用。
 若全部真实 `compareItem` 均不包含"材质"，
-立即锁定 `materialScopeCateNameTreeSet=空集`、`materialGroupCount=0`：不得调用材质关系工具；即使上下文中已有
+立即锁定 `materialScopeLedger=空`、`materialScopeCateNameTreeSet=空集`、`materialGroupCount=0`：不得调用材质关系工具；即使上下文中已有
 材质响应也必须忽略；重建候选时不得出现材质引用、材质对照表或材质专属字段规则。
-后续只判断对应集合是否为空，并用对应作用域集合统一过滤候选品牌组或材质行；输出前按品牌组或材质行去重。
-不得按每个类目分别输出一份，也不得扩大成"电商全站"。常识只能删除，不得新增、恢复、合并、改名或补别名。
+`materialScopeCateNameTreeSet` 后续只负责材质工具调用门禁；材质行的过滤、归属和输出分组必须使用
+`materialScopeLedger`，不得退化为只按类目集合过滤。所有材质作用域仍输出在一张材质对照表内，
+不得按类目复制整张表，也不得扩大成"电商全站"。常识只能删除，不得新增、恢复、合并、改名或补别名。
 当前规则同步分支中，只有 `brand=true` 才允许进入 4.1.3；只有 `material=true` 才允许进入 4.1.4。
 `brand=false` 时即使 `brandScopeCateNameTreeSet` 非空也不得查询品牌关系、不得改写母子品牌映射表；
 `material=false` 时即使 `materialScopeCateNameTreeSet` 非空也不得查询材质关系、不得改写材质引用行或材质表。
-本节完成后，后续映射查询和候选生成只使用本轮得到的 `brandScopeCateNameTreeSet` 和
-`materialScopeCateNameTreeSet`。
+本节完成后，品牌流程只使用本轮 `brandScopeCateNameTreeSet`；材质调用门禁使用
+`materialScopeCateNameTreeSet`，材质过滤和候选生成使用本轮 `materialScopeLedger`。
 
 #### 4.1.3 主子品牌关系查询
 
@@ -276,8 +278,8 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
 `materialScopeCateNameTreeSet` 非空时执行本节；`material=true` 但集合为空时记录为"按真实比价项门禁不适用"，
 不得调用工具，并必须从候选中删除基础正文已有的材质比价项、材质引用行、材质对照表、相邻的孤立分隔线
 及材质专属字段规则；不得保留、扩写或新增任何材质内容。
-材质映射只使用 `materialScopeCateNameTreeSet` 统一过滤材质行；不得使用其他 categoryId 的类目，
-也不得把材质范围扩大到全站或其他类目。
+`materialScopeCateNameTreeSet` 只用于本节调用门禁；材质映射必须使用 `materialScopeLedger` 中真实
+`(categoryId, cateNameTree, compareItem)` 联合过滤，不得使用其他 categoryId、其他比价项或扩大到全站。
 
 调用：`query_material_leaf(operator=上下文.operator)`
 
@@ -290,15 +292,29 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
 
 过滤顺序（硬约束）：
 1. 先遍历并校验 `materialText[]` 全部文本行，不得预先截取前 N 行；
-2. 再按 `materialScopeCateNameTreeSet` 对全部有效行做一次统一相关性过滤；
-3. 删除明显无关或不确定的行，并按文本行原文去重后，才对过滤结果应用 50 行上限；
-4. 同一材质行不得因为命中多个 `cateNameTree` 重复输出；过滤后不足上限就只输出实际命中行，不得从已删除行回填或用常识补齐。
+2. 将每条有效原文分别与 `materialScopeLedger` 的每一行做联合相关性判断，不得先仅按 `cateNameTree`
+   做不可恢复的删除。只有该原文同时明确适用于账本行的真实类目和材质比价项，才记录该作用域；
+3. `compareItem` 精确等于"材质"时始终只在所属类目内表示通用材质，判断时无需再区分部位；若它与其他
+   材质比价项共存，仍保留独立账本行。`主材质`、`表带材质`、`表壳材质`及其他非精确"材质"名称均为
+   独立维度，必须保留原名并分别判断，不得互相折叠；
+4. 为每条命中原文建立 `materialRetentionLedger`，逐字符保存原始 `materialText`，并记录全部命中的
+   `(categoryId, cateNameTree, compareItem)`；无法明确命中任何账本行的原文删除，常识只能用于删除，不能补归属；
+5. 先按原始 `materialText` 逐字符去重并合并其全部命中作用域，再按原始响应相对顺序应用 50 行上限；
+   同一原文即使命中多个作用域也只能保留一份，不得从已删除行回填或用常识补齐。
 
-过滤后的文本行**原样**写入材质对照表附录，不得改写路径或成员名称。
+过滤后的文本行必须从 `materialRetentionLedger` **逐字符原样**写入材质对照表附录，不得改写路径或成员名称。
+输出时按完全相同的命中作用域集合分组，每组先输出 `#### 适用范围：<作用域标签>`，再按原始相对顺序输出原文：
+- 具体材质维度的标签固定为 `<cateNameTree>｜<compareItem>`；
+- 同一原文命中多个作用域时，标签用 `；` 连接全部作用域，原文仍只输出一次；
+- 某 categoryId 下唯一材质比价项精确等于"材质"时，标签只写 `<cateNameTree>`，不额外写"材质"；
+- 适用范围标题是归属元数据，不属于服务端材质行，不得把标题内容拼入或改写 `materialText` 原文。
+例如账本同时包含 `(手表/钟表, 表带材质)`、`(手表/钟表, 表壳材质)`、`(珠宝, 材质)` 时，
+对应标签分别写 `手表/钟表｜表带材质`、`手表/钟表｜表壳材质`、`珠宝`；若同一原文命中前两项，
+该组标题写 `#### 适用范围：手表/钟表｜表带材质；手表/钟表｜表壳材质`。
 
 过滤后 0 行时，静默省略材质引用和材质表，不得输出空结果说明，也不得停止。
-进入下一步前记录 `materialGroupCount = min(过滤后行数, 50)`。
-过滤结果直接用于生成材质对照表，按当前过滤后顺序原样输出。
+进入下一步前记录 `materialGroupCount = min(materialRetentionLedger 中去重原文行数, 50)`。
+过滤结果直接用于生成材质对照表；适用范围标题按命中作用域分组，材质原文保持当前过滤后相对顺序。
 
 ### 4.2 比价项转换账本（当前规则同步 + 格式重构硬分支）
 
@@ -438,6 +454,8 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
   删除材质比价项、材质引用行、材质对照表、材质专属字段规则及删除后多余的分隔线；若映射表只剩母子品牌，
   保留 `## 映射表` 和母子品牌子表，删除两个子表之间原有的 `---`。
 - 材质引用行不属于"匹配"，不得缩进到"匹配"子项中，不得计入 `expectedMatch`。
+- 实际执行时只能使用与当前输入 `category` 和当前材质 `compareItem` 共同命中的适用范围分组，
+  禁止跨类目或跨材质维度引用。
 - 当前规则同步分支 `priceRules=false && material=true` 时，只改写材质相关内容，不得重建 Step3、
   `# 输出格式` 或其他非材质业务规则；作用域为空时，允许且必须删除材质比价项、材质引用行、
   材质对照表、材质专属字段规则和相邻的孤立分隔线。
@@ -634,7 +652,11 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
 
 **映射表写法**：
 - 母子品牌：标题 `### 母子品牌映射表（<真实适用类目>）`，禁止写动态组数；每行 `序号. 母品牌→子品牌1|子品牌2`；仅当材质表也需输出时，最后一条后加 `---` 分隔。
-- 材质：标题固定 `### 材质对照表（同组内可互匹配，跨组不可）`；每组直接使用 `data.materialText[]` 过滤后的文本行原样输出；最多 50 组，实际不足时不补齐。
+- 材质：标题固定 `### 材质对照表（同组内可互匹配，跨组不可）`；按 `materialRetentionLedger`
+  中完全相同的命中作用域集合分组，每组先输出 `#### 适用范围：<作用域标签>`，再逐字符输出对应的
+  `data.materialText[]` 原文。具体维度标签为 `<cateNameTree>｜<compareItem>`，多个标签用 `；` 连接；
+  某 categoryId 下唯一材质比价项精确等于"材质"时只写 `<cateNameTree>`。最多 50 条去重原文，
+  同一原文命中多个作用域仍只计 1 条、输出 1 次，实际不足时不补齐。
 
 ### 4.6 调用校验前的必检项
 
@@ -654,9 +676,13 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
      `brand=true && brandScopeCateNameTreeSet=空集` 时必须删除基础正文中的全部母子品牌内容及孤立分隔线，
      候选不得残留品牌比价项及其输入说明表行、图片说明项、JSON 示例字段、母子品牌映射表或映射引用。
      `brand=false` 时不得查询品牌关系，不得改写母子品牌映射表。
-   - 格式重构硬分支，或当前规则同步分支 `material=true` 时：`materialScopeCateNameTreeSet` 非空则对应比价项章节必须存在固定行
-     `- **材质对照表**：见下方附录。`，且下方必须存在材质对照表附录，二者缺一不得调用校验；
-     `materialGroupCount>0` 时输出真实行；`material=true && materialScopeCateNameTreeSet=空集` 时必须删除
+   - 格式重构硬分支，或当前规则同步分支 `material=true` 时：`materialScopeCateNameTreeSet` 非空且
+     `materialGroupCount>0` 时，对应比价项章节必须存在固定行 `- **材质对照表**：见下方附录。`，
+     且下方必须存在材质对照表附录，二者缺一不得调用校验；`materialScopeLedger` 与
+     `materialRetentionLedger` 必须同时存在，每条保留原文
+     必须至少命中一个真实作用域，并按 4.1.4 输出完整适用范围标题；任一缺失不得调用校验；
+     `materialScopeCateNameTreeSet` 非空但 `materialGroupCount=0` 时静默省略引用和材质表；
+     `material=true && materialScopeCateNameTreeSet=空集` 时必须删除
      基础正文中的全部材质内容及孤立分隔线，候选不得残留"材质对照表"、材质引用或材质专属字段规则。
      `material=false` 时不得查询材质关系，不得改写材质引用行或材质表。
    - 需要重建映射章节时，若参与重建的 `brandScopeCateNameTreeSet` 和 `materialScopeCateNameTreeSet` 均为空，
@@ -691,7 +717,8 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
    `比价维度>sku图>商品标题>主图>商品属性` 必须逐字符投影为 `商品标题>主图>商品属性`。
 2. **关系响应门禁**：品牌、材质正文只能来自本轮真实关系接口响应及过滤结果；
    母子品牌映射表只能逐组复制品牌保留账本，组数必须精确等于 `brandGroupCount`，每组必须有明确命中的真实
-   `cateNameTree`；材质直接使用本轮 `data.materialText[]` 过滤后的文本行，不得修改或补充。
+   `cateNameTree`；材质必须逐条复制 `materialRetentionLedger` 中的本轮 `data.materialText[]` 原文，
+   不得修改或补充，且只能用账本中真实 `(categoryId, cateNameTree, compareItem)` 生成适用范围标题。
 3. **候选泄漏门禁**：候选全文不得出现任何生成器门控、条件输出或内部算法说明，
    也禁止用"无符合""未命中""暂无"等空结果正文占位；不得出现 `<生效比价项>` 或任意尖括号占位符。
 4. **归一化合并门禁**：同名比价项跨类目仅比较归一化后的 `expectedPriority` 和 `expectedMatch`；
@@ -703,7 +730,7 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
    不含品牌比价项及其输入说明表行、图片说明项、JSON 示例字段、母子品牌映射表、品牌章节中的映射引用、
    孤立分隔线或任何品牌专属说明；基础正文原有品牌内容必须删除，任一不满足均禁止调用校验。
 6. **材质零作用域门禁**：执行 `material=true`、`priceRules=true` 或格式重构硬分支时，若真实 `compareItem` 均不含"材质"，
-   必须同时满足 `materialScopeCateNameTreeSet=空集`、`materialGroupCount=0`、无材质工具调用，且重建后的候选
+   必须同时满足 `materialScopeLedger=空`、`materialScopeCateNameTreeSet=空集`、`materialGroupCount=0`、无材质工具调用，且重建后的候选
    不含材质比价项、材质引用、`材质对照表`、`材质value`、孤立分隔线或任何材质专属说明；
    基础正文原有材质内容必须删除，任一不满足均禁止调用校验。
 
