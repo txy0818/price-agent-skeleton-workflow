@@ -534,6 +534,8 @@
 - 材质组是否逐条来自 `materialRetentionLedger` 的本轮 `materialText[]` 原文，路径和成员均未被改写？
 - 每条材质原文是否至少命中一个真实 `(categoryId, cateNameTree, compareItem)`，适用范围标题是否完整列出
   该行全部命中作用域，且同一原文只输出一次？
+- 按出现顺序提取全部 `#### 适用范围` 标题；若标题序列中任意两个相邻标题逐字符相同，必须删除后一个
+  重复标题并保留两标题之间及其后的材质原文顺序，直到相邻标题不再重复。
 - 全文是否大体在 1 万字以内，且没有为压缩长度删除规则？
 
 **JSON**：
@@ -562,7 +564,8 @@
    - `materialScopeCateNameTreeSet` 非空且 `materialGroupCount>0` 时：对应比价项章节必须存在固定行
      `- **材质对照表**：见下方附录。`，且下方必须存在材质对照表附录，二者缺一不得调用校验；
      `materialScopeLedger` 与 `materialRetentionLedger` 必须同时存在，每条保留原文必须至少命中一个
-     真实作用域，并按 4.4 输出完整适用范围标题；任一缺失不得调用校验。
+     真实作用域，并按 4.4 输出完整适用范围标题；按出现顺序提取的 `#### 适用范围` 标题序列不得存在
+     两个相邻标题逐字符相同的情况，存在时必须合并重复标题且不得调整材质原文顺序。任一条件不满足不得调用校验。
      `materialScopeCateNameTreeSet` 非空但 `materialGroupCount=0` 时静默省略引用和材质表，
      不要求存在非空 `materialRetentionLedger`。
    - `brandScopeCateNameTreeSet` 和 `materialScopeCateNameTreeSet` 均为空时，省略整个 `## 映射表` 章节。
