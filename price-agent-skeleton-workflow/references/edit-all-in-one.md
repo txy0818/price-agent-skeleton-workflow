@@ -39,7 +39,7 @@ EDIT 的意图判定、版本绑定、查询、账本推导、候选生成、校
 4. 文件最后一条：“最终一行必须逐字为 `确认无误请回复：**确认创建提示词草稿**。`”。
 
 任一标记未读到时，必须继续 `read` 同一文件；期间不得调用 `tool_query_prompt_skeleton` 或任何其他业务 MCP。
-只有全部标记已读到后才记录 `editWorkflowFullyLoaded=true`，然后从第 1 节开始执行。
+只有全部标记已读到，且本轮所有分次读取无缝覆盖本文件从首行到末行后，才同时记录 `editWorkflowFullyLoaded=true` 和系统级 `workflowFullyLoaded=true`，然后从第 1 节开始执行。任一标记、中间分片或末行未读到时，两个状态必须同时为 `false`。
 若后续读取真实失败，只返回 Skill 文件加载错误；禁止使用已读的前半段继续生成、根据校验错误反推格式或切换到 INITIALIZE。
 
 ---
