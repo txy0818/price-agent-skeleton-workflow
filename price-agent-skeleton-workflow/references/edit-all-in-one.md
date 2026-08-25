@@ -515,20 +515,21 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
 |<真实比价项1>|<该比价项所属 categoryId 的 cateNameTree 原文；多个类目用逗号分隔>|
 |<真实比价项2>|<该比价项所属 categoryId 的 cateNameTree 原文；多个类目用逗号分隔>|
 
-**不适用的比价项不参与判定**：不抽取、不输出到`extracted`、不计入`match`综合判定。
+将当前输入 `category` 命中上表适用类目前缀的全部比价项定义为 `activeCompareItemSet`。
+**不属于 `activeCompareItemSet` 的比价项不参与判定**：不抽取、不输出到`extracted`、不计入`match`综合判定。
 
 ---
 
 # 执行步骤
 
 **Step0：读取category**
-—根据上表确定本次需要判定的比价项子集（默认全部<本轮生效比价项数量>项，剔除不适用项）
+—根据上表计算并锁定本次 `activeCompareItemSet`；集合只由当前输入 `category` 决定，后续步骤不得增删
 
 **Step1：逐项抽取**
-—仅对生效比价项，从左右商品的商品属性、商品标题或主图中提取`value`和`source`，填入`extracted`的`left`/`right`字段
+—仅对`activeCompareItemSet`中的比价项，从左右商品的商品属性、商品标题或主图中提取`value`和`source`，填入`extracted`的`left`/`right`字段
 
 **Step2：逐项匹配**
-—对每个生效比价项，按下方匹配规则判定`match`（`true`/`false`）和`reason`
+—对`activeCompareItemSet`中的每个比价项，按下方匹配规则判定`match`（`true`/`false`）和`reason`
 
 <按 4.2.2 "货号匹配逻辑"下方的 Step3 生成规则，在此填入普通 Step3、货号 Step3 或两者；若两者都存在才在标题中标明适用 cateNameTree。>
 
@@ -582,7 +583,9 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
 
 严格只输出JSON，禁止额外文字、注释或```符号。
 
-**`extracted`中只包含生效的比价项**：不适用的比价项按`category`裁剪后不出现在`extracted`对象中，不抽取、不输出空对象、不参与综合判定。
+**下方 JSON 仅为结构示例。实际输出时，`extracted` 除固定的 `key_diff_point` 外，业务键必须逐项取自
+`activeCompareItemSet`，键集合必须与 `activeCompareItemSet` 完全相等。** 不在集合中的比价项整体省略，
+不得输出空对象，也不得因为示例中展示了该键而输出。
 
 ```json
 {
@@ -609,7 +612,7 @@ categoryId 对应 `cateNameTree` 集合，记为 `materialScopeCateNameTreeSet`�
 
 字段规则：
 
-- `extracted`仅包含按`category`生效的比价项；不适用项整体省略，不输出空对象。
+- `extracted`除`key_diff_point`外仅包含`activeCompareItemSet`中的比价项，且不得缺少集合中的任何一项；不适用项整体省略，不输出空对象。
 - `confidence`取值范围为`0.0`～`1.0`（含边界）的浮点数，越大表示判定把握越高；必须输出具体数字字面量（如`0.85`），严禁输出`0.0~1.0`、`0.0-1.0`等区间记法。
 - `value`抽取不到时填`"缺失"`，`source`填`""`。
 - `source`仅允许三种标准来源：`商品属性`、`商品标题`、`主图`；其他来源填`""`。
