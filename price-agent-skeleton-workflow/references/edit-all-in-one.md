@@ -621,6 +621,9 @@ EDIT 的意图判定、版本绑定、查询、账本推导、候选生成、校
    输出一组无类目后缀的 `优先级` 和 `匹配`。
 3. 该比价项属于多个 categoryId，且任一 `expectedPriority` 或 `expectedMatch` 不一致：分别按
    `cateNameTree` 输出 `优先级（<cateNameTree>）` 和 `匹配（<cateNameTree>）`。
+   `优先级` 与 `匹配` 是不可拆分的一对：即使只有 `expectedMatch` 不同而所有 `expectedPriority` 相同，
+   也必须为每个 `cateNameTree` 重复输出对应的 `优先级（<cateNameTree>）` 和 `匹配（<cateNameTree>）`；
+   禁止输出无类目后缀的统一优先级再只按类目拆分匹配，反之亦然。
 下方模板中的"情况一/情况二"只是内部选择逻辑，最终 `promptContent` 中不得出现"情况一"、"情况二"
 或未替换的示例类目。
 这里比较的是 3.2 生成的归一化 `expectedPriority` 与最终 `expectedMatch`，不得比较原始 `infoSource`、
@@ -699,6 +702,9 @@ JSON 示例的生成时业务键全集是 `validCompareItemSet`，不得用运�
 - **匹配（<cateNameTree-A>）**：<该类目的 expectedMatch>
 - **优先级（<cateNameTree-B>）**：<该类目的 expectedPriority>
 - **匹配（<cateNameTree-B>）**：<该类目的 expectedMatch>
+
+情况二中每个 `cateNameTree` 必须同时输出一条优先级和一条匹配；即使优先级原文相同也必须按类目重复，
+不得生成“统一优先级 + 分类目匹配”或“分类目优先级 + 统一匹配”。
 
 按 `validCompareItemSet` 为每个真实比价项生成一个章节，并保持连续编号。
 
@@ -862,6 +868,9 @@ JSON 示例的生成时业务键全集是 `validCompareItemSet`，不得用运�
    也禁止用"无符合""未命中""暂无"等空结果正文占位；不得出现 `<真实比价项>` 或任意尖括号占位符。
 4. **归一化合并门禁**：同名比价项跨类目仅比较归一化后的 `expectedPriority` 和 `expectedMatch`；
    两者均逐字符一致时，候选只能有一组无类目后缀的 `优先级`、`匹配`，不得按类目重复。
+   任一字段不一致时，候选必须为该比价项涉及的每个 `cateNameTree` 成对输出
+   `优先级（<cateNameTree>）`、`匹配（<cateNameTree>）`，即使其中一个字段在各类目下相同也不得单独合并；
+   出现“统一优先级 + 分类目匹配”或“分类目优先级 + 统一匹配”时禁止调用校验或形成提案。
    仅属于一个类目的比价项同样只能使用无类目后缀的 `优先级`、`匹配`。所有比价项章节标题只能是
    `### 序号. 比价项名称`，不得包含`仅...生效`、`适用于`或任何类目后缀。
 5. **比价项全集门禁**：执行 `priceRules=true` 或格式重构硬分支时，`validCompareItemSet` 必须逐项来自本轮真实规则响应；
