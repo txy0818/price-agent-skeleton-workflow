@@ -423,6 +423,11 @@ EDIT 的意图判定、版本绑定、查询、账本推导、候选生成、校
 账本任一字段推导不通过时禁止继续生成。当前规则同步分支命中 `priceRules=true` 时，账本必须覆盖
 每个真实 categoryId 下的每个 `ruleTableInfo[]`：只有每项都有候选落点、优先级与
 `expectedPriority` 完全一致、候选匹配与 `expectedMatch` 逐项一致，才算 `priceRules` 覆盖完成。
+账本完成后必须立即锁定 `validCompareItemSet`：它等于本轮全部 categoryId 的
+`ruleTableInfo.ruleTableInfo[].compareItem` 去重集合，按首次出现顺序排列。当前规则同步或格式重构硬分支
+重建 `# 输入说明` 表、`## 比价项` 章节、JSON 示例 `extracted` 键集合时，都必须以该集合为全集；
+不得因为某个比价项只属于部分类目、当前输入样例的 `category` 未命中、另一类目没有该项、篇幅压缩或模板示例只有两行而删除。
+若真实规则中存在 `品种`、`产地` 等普通比价项，它们必须进入该全集并在所属类目的适用范围内输出。
 当前规则同步分支 `priceRules=false` 时，不建立比价项转换账本，不重建比价项章节、Step3 或输出结构；
 `brand=true` 时只允许改写或删除品牌比价项及其结构落点、母子品牌映射表、品牌章节中的映射引用及其相邻的必要结构；
 `material=true` 时只允许改写或删除材质比价项、材质引用行、
@@ -590,7 +595,11 @@ EDIT 的意图判定、版本绑定、查询、账本推导、候选生成、校
 **禁止将本节的规范说明句子复制、改写或解释后写入 `promptContent`**；只有模板围栏内从 `# 角色` 至
 `# 输出格式`（含 7 条通用字段规则，以及真实比价项包含材质时的 1 条条件字段规则）的内容才是正文结构。
 
-**输入说明表生成规则**（仅用于生成，不得写入 `promptContent`）：遍历所有有效 `compareItem`，以比价项名称为行；同名 `compareItem` 出现在多个 categoryId 下时合并到同一行，各 `cateNameTree` 原文用逗号拼接；只出现在部分 categoryId 下的只填那几个 categoryId 的 `cateNameTree`，不得把无关类目填进来；同名 `compareItem` 不出现重复行；`cateNameTree` 已代表该路径下的全部子类目。
+**输入说明表生成规则**（仅用于生成，不得写入 `promptContent`）：遍历 `validCompareItemSet` 中全部
+`compareItem`，以比价项名称为行；同名 `compareItem` 出现在多个 categoryId 下时合并到同一行，
+各 `cateNameTree` 原文用逗号拼接；只出现在部分 categoryId 下的只填那几个 categoryId 的
+`cateNameTree`，不得把无关类目填进来；同名 `compareItem` 不出现重复行；`cateNameTree`
+已代表该路径下的全部子类目。表格行数必须等于 `validCompareItemSet` 大小；模板中的两条示例行不是上限。
 
 **比价项章节生成规则**（仅用于生成，不得写入 `promptContent`）：生成 `## 比价项` 前，必须先按
 `compareItem` 对 4.2 内部转换账本分组；每个 `compareItem` 只生成一个章节，不得按 `categoryId`
@@ -632,6 +641,8 @@ EDIT 的意图判定、版本绑定、查询、账本推导、候选生成、校
 |<真实比价项2>|<该比价项所属 categoryId 的 cateNameTree 原文；多个类目用逗号分隔>|
 
 将当前输入 `category` 命中上表适用类目前缀的全部比价项定义为 `activeCompareItemSet`。
+判断前缀命中时，将 `category` 与适用类目中的 `>`、`/` 都视为层级分隔符并按层级比较；表格中仍保留
+`cateNameTree` 原文，不改写显示文本。
 **不属于 `activeCompareItemSet` 的比价项不参与判定**：不抽取、不输出到`extracted`、不计入`match`综合判定。
 
 ---
@@ -801,6 +812,8 @@ EDIT 的意图判定、版本绑定、查询、账本推导、候选生成、校
    不得裁掉真实比价项、规则边界、例外、固定章节或 JSON 字段，不得硬截断。
 8. **当前规则同步分支专用硬校验**：
    - `priceRules=true` 时，4.2 转换账本中的真实类目记录、比价项数量、名称、顺序与各 categoryId 下 `ruleTableInfo[]` 完全一致；
+   - `priceRules=true` 或格式重构硬分支重建全文时，`# 输入说明` 表行集合、`## 比价项` 章节集合、
+     JSON 示例业务键集合必须均与 `validCompareItemSet` 完全一致，没有遗漏只属于部分类目的真实比价项；
    - `priceRules=false` 时，不得生成比价项转换账本，不得在提案中声称已同步或核对比价项规则；
    - 候选全文必须通过本次用户明确指定同步对象相关的全部硬校验，不得静默忽略任何已指定对象；
    - 用户未明确指定的同步对象必须保持原文，不得顺手修改或在提案中列为已同步；
@@ -835,11 +848,14 @@ EDIT 的意图判定、版本绑定、查询、账本推导、候选生成、校
    两者均逐字符一致时，候选只能有一组无类目后缀的 `优先级`、`匹配`，不得按类目重复。
    仅属于一个类目的比价项同样只能使用无类目后缀的 `优先级`、`匹配`。所有比价项章节标题只能是
    `### 序号. 比价项名称`，不得包含`仅...生效`、`适用于`或任何类目后缀。
-5. **品牌零作用域门禁**：执行 `brand=true`、`priceRules=true` 或格式重构硬分支时，若真实 `compareItem` 均不含"品牌"，
+5. **比价项全集门禁**：执行 `priceRules=true` 或格式重构硬分支时，`validCompareItemSet` 必须逐项来自本轮真实规则响应；
+   候选中的输入说明表行、比价项章节和 JSON 示例业务键必须与该集合逐项一致。真实规则存在而候选遗漏的任一比价项，
+   包括只在部分类目生效的 `品种`、`产地` 等普通比价项，均视为业务规则缺失，禁止调用校验或形成提案。
+6. **品牌零作用域门禁**：执行 `brand=true`、`priceRules=true` 或格式重构硬分支时，若真实 `compareItem` 均不含"品牌"，
    必须同时满足 `brandScopeCateNameTreeSet=空集`、`brandGroupCount=0`、无品牌工具调用，且重建后的候选
    不含品牌比价项及其输入说明表行、图片说明项、JSON 示例字段、母子品牌映射表、品牌章节中的映射引用、
    孤立分隔线或任何品牌专属说明；基础正文原有品牌内容必须删除，任一不满足均禁止调用校验。
-6. **材质零作用域门禁**：执行 `material=true`、`priceRules=true` 或格式重构硬分支时，若真实 `compareItem` 均不含"材质"，
+7. **材质零作用域门禁**：执行 `material=true`、`priceRules=true` 或格式重构硬分支时，若真实 `compareItem` 均不含"材质"，
    必须同时满足 `materialScopeLedger=空`、`materialScopeCateNameTreeSet=空集`、`materialGroupCount=0`、无材质工具调用，且重建后的候选
    不含材质比价项、材质引用、`材质对照表`、`材质value`、孤立分隔线或任何材质专属说明；
    基础正文原有材质内容必须删除，任一不满足均禁止调用校验。
